@@ -237,6 +237,15 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ramoops.dtbo \
 	ramoops-pi4.dtbo \
 	rootmaster.dtbo \
+	revpi-compact.dtbo \
+	revpi-compact-dt-blob.dtbo \
+	revpi-connect.dtbo \
+	revpi-connect-dt-blob.dtbo \
+	revpi-con-can.dtbo \
+	revpi-flat.dtbo \
+	revpi-flat-dt-blob.dtbo \
+	revpi-core.dtbo \
+	revpi-core-dt-blob.dtbo \
 	rotary-encoder.dtbo \
 	rpi-backlight.dtbo \
 	rpi-codeczero.dtbo \
