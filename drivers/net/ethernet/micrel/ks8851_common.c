@@ -11,6 +11,7 @@
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/kthread.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
@@ -340,6 +341,11 @@ static irqreturn_t ks8851_irq(int irq, void *_ks)
 	netif_dbg(ks, intr, ks->netdev,
 		  "%s: status 0x%04x\n", __func__, status);
 
+	if (!status) {
+		ks8851_unlock(ks, &flags);
+		return IRQ_NONE;
+	}
+
 	if (status & IRQ_LDI) {
 		u16 pmecr = ks8851_rdreg16(ks, KS_PMECR);
 		pmecr &= ~PMECR_WKEVT_MASK;
@@ -401,6 +407,18 @@ static irqreturn_t ks8851_irq(int irq, void *_ks)
 	return IRQ_HANDLED;
 }
 
+static int ks8851_irqpoll(void *data)
+{
+	struct ks8851_net *ks = data;
+
+	while (!kthread_should_stop()) {
+		ks8851_irq(IRQ_NOTCONNECTED, ks);
+		usleep_range(800, 1000);
+	}
+
+	return 0;
+}
+
 /**
  * ks8851_flush_tx_work - flush outstanding TX work
  * @ks: The device state
@@ -424,12 +442,23 @@ static int ks8851_net_open(struct net_device *dev)
 	unsigned long flags;
 	int ret;
 
-	ret = request_threaded_irq(dev->irq, NULL, ks8851_irq,
-				   IRQF_TRIGGER_LOW | IRQF_ONESHOT,
-				   dev->name, ks);
-	if (ret < 0) {
-		netdev_err(dev, "failed to get irq\n");
-		return ret;
+	if (dev->irq > 0) {
+		ret = request_threaded_irq(dev->irq, NULL, ks8851_irq,
+					   IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					   dev->name, ks);
+		if (ret < 0) {
+			netdev_err(dev, "failed to get irq\n");
+			return ret;
+		}
+	} else {
+		ks->irqpoll = kthread_create(&ks8851_irqpoll, ks, "irqpoll/%s",
+		                             dev->name);
+		if (IS_ERR(ks->irqpoll)) {
+			netdev_err(dev, "failed to create irqpoll thread\n");
+			return PTR_ERR(ks->irqpoll);
+		}
+
+		sched_set_fifo(ks->irqpoll);
 	}
 
 	/* lock the card, even if we may not actually be doing anything
@@ -483,6 +512,10 @@ static int ks8851_net_open(struct net_device *dev)
 
 	ks->queued_len = 0;
 	ks->tx_space = ks8851_rdreg16(ks, KS_TXMIR);
+
+	if (ks->irqpoll)
+		wake_up_process(ks->irqpoll);
+
 	netif_start_queue(ks->netdev);
 
 	netif_dbg(ks, ifup, ks->netdev, "network device up\n");
@@ -540,7 +573,10 @@ static int ks8851_net_stop(struct net_device *dev)
 		dev_kfree_skb(txb);
 	}
 
-	free_irq(dev->irq, ks);
+	if (dev->irq > 0)
+		free_irq(dev->irq, ks);
+	else
+		kthread_stop(ks->irqpoll);
 
 	return 0;
 }
@@ -1210,8 +1246,9 @@ int ks8851_probe_common(struct net_device *netdev, struct device *dev,
 		goto err_id;
 	}
 
-	netdev_info(netdev, "revision %d, MAC %pM, IRQ %d, %s EEPROM\n",
+	netdev_info(netdev, "revision %d, MAC %pM, IRQ %d%s, %s EEPROM\n",
 		    CIDER_REV_GET(cider), netdev->dev_addr, netdev->irq,
+		    netdev->irq <= 0 ? " (polling)" : "",
 		    ks->rc_ccr & CCR_EEPROM ? "has" : "no");
 
 	return 0;

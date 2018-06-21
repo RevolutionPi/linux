@@ -369,6 +369,7 @@ union ks8851_tx_hdr {
  * @wrfifo: FIFO write callback
  * @start_xmit: start_xmit() implementation callback
  * @flush_tx_work: flush_tx_work() implementation callback
+ * @irqpoll: Optional kthread to poll for interrupts if IRQ is not connected
  *
  * The @statelock is used to protect information in the structure which may
  * need to be accessed via several sources, such as the network driver layer
@@ -423,6 +424,8 @@ struct ks8851_net {
 	netdev_tx_t		(*start_xmit)(struct sk_buff *skb,
 					      struct net_device *dev);
 	void			(*flush_tx_work)(struct ks8851_net *ks);
+
+	struct task_struct	*irqpoll;
 };
 
 int ks8851_probe_common(struct net_device *netdev, struct device *dev,
