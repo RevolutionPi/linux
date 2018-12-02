@@ -423,7 +423,8 @@ struct ks8851_net {
 					  struct sk_buff *txp, bool irq);
 	netdev_tx_t		(*start_xmit)(struct sk_buff *skb,
 					      struct net_device *dev);
-	void			(*flush_tx_work)(struct ks8851_net *ks);
+	int			(*start_tx_thread)(struct ks8851_net *ks);
+	void			(*stop_tx_thread)(struct ks8851_net *ks);
 
 	struct task_struct	*irqpoll;
 };
