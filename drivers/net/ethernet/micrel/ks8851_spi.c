@@ -298,6 +298,17 @@ static unsigned int calc_txlen(unsigned int len)
 	return ALIGN(len + 4, 4);
 }
 
+static void ks8851_adjust_prio(struct sk_buff *txb)
+{
+	if (txb->priority == TC_PRIO_REALTIME) {
+		if (!current->rt_priority)
+			sched_set_fifo(current);
+	} else {
+		if (current->rt_priority)
+			sched_set_normal(current, 0);
+	}
+}
+
 /**
  * ks8851_tx_work - process tx packet(s)
  * @ks: The device state.
@@ -324,6 +335,7 @@ static void ks8851_tx_work(struct ks8851_net *ks)
 		if (txb) {
 			dequeued_len += calc_txlen(txb->len);
 
+			ks8851_adjust_prio(txb);
 			ks8851_wrreg16_spi(ks, KS_RXQCR,
 					   ks->rc_rxqcr | RXQCR_SDA);
 			ks8851_wrfifo_spi(ks, txb, last);
