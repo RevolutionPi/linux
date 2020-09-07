@@ -95,6 +95,9 @@ static char *macaddr = ":";
 module_param(macaddr, charp, 0);
 MODULE_PARM_DESC(macaddr, "MAC address");
 
+static u8 last_macaddr[MAC_ADDR_LEN];
+static DEFINE_MUTEX(macaddr_lock);
+
 static int __must_check __smsc95xx_read_reg(struct usbnet *dev, u32 index,
 					    u32 *data, int in_pm)
 {
@@ -926,51 +929,84 @@ static int smsc95xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	return generic_mii_ioctl(&dev->mii, if_mii(rq), cmd, NULL);
 }
 
+/* Increment the non-OUI part of the MAC address */
+static int smsc95xx_increment_lastmac(u8 *lastmac)
+{
+	if (last_macaddr[5] == 0xff) {
+		if (last_macaddr[4] == 0xff) {
+			if (last_macaddr[3] == 0xff)
+				return -1;
+			last_macaddr[3]++;
+		}
+		last_macaddr[4]++;
+	}
+	last_macaddr[5]++;
+
+	return 0;
+}
+
 /* Check the macaddr module parameter for a MAC address */
 static int smsc95xx_macaddr_param(struct usbnet *dev, u8 *dev_mac)
 {
-	int i, j, got_num, num;
+	int i, j, got_num, num, ret;
 	u8 mtbl[MAC_ADDR_LEN];
 
 	if (macaddr[0] == ':')
 		return -1;
 
-	i = 0;
-	j = 0;
-	num = 0;
-	got_num = 0;
-	while (j < MAC_ADDR_LEN) {
-		if (macaddr[i] && macaddr[i] != ':') {
-			got_num++;
-			if ('0' <= macaddr[i] && macaddr[i] <= '9')
-				num = num * 16 + macaddr[i] - '0';
-			else if ('A' <= macaddr[i] && macaddr[i] <= 'F')
-				num = num * 16 + 10 + macaddr[i] - 'A';
-			else if ('a' <= macaddr[i] && macaddr[i] <= 'f')
-				num = num * 16 + 10 + macaddr[i] - 'a';
-			else
+	mutex_lock_interruptible(&macaddr_lock);
+	ret = is_valid_ether_addr(last_macaddr);
+	if (!ret) {
+		ret = 0;
+		i = 0;
+		j = 0;
+		num = 0;
+		got_num = 0;
+		while (j < MAC_ADDR_LEN) {
+			if (macaddr[i] && macaddr[i] != ':') {
+				got_num++;
+				if ('0' <= macaddr[i] && macaddr[i] <= '9')
+					num = num * 16 + macaddr[i] - '0';
+				else if ('A' <= macaddr[i] && macaddr[i] <= 'F')
+					num = num * 16 + 10 + macaddr[i] - 'A';
+				else if ('a' <= macaddr[i] && macaddr[i] <= 'f')
+					num = num * 16 + 10 + macaddr[i] - 'a';
+				else
+					break;
+				i++;
+			} else if (got_num == 2) {
+				mtbl[j++] = (u8) num;
+				num = 0;
+				got_num = 0;
+				i++;
+			} else {
 				break;
-			i++;
-		} else if (got_num == 2) {
-			mtbl[j++] = (u8) num;
-			num = 0;
-			got_num = 0;
-			i++;
-		} else {
-			break;
+			}
 		}
+
+		if (j == MAC_ADDR_LEN) {
+			for (i = 0; i < MAC_ADDR_LEN; i++)
+				last_macaddr[i] = mtbl[i];
+
+		} else {
+			ret = -1;
+			goto out;
+		}
+	} else {
+		ret = smsc95xx_increment_lastmac(last_macaddr);
+		if (ret < 0)
+			goto out;
 	}
 
-	if (j == MAC_ADDR_LEN) {
-		netif_dbg(dev, ifup, dev->net, "Overriding MAC address with: "
-		"%02x:%02x:%02x:%02x:%02x:%02x\n", mtbl[0], mtbl[1], mtbl[2],
-						mtbl[3], mtbl[4], mtbl[5]);
-		for (i = 0; i < MAC_ADDR_LEN; i++)
-			dev_mac[i] = mtbl[i];
-		return 0;
-	} else {
-		return -1;
-	}
+	for (i = 0; i < MAC_ADDR_LEN; i++)
+		dev_mac[i] = last_macaddr[i];
+	netif_dbg(dev, ifup, dev->net, "Overriding MAC address with: "
+		  "%02x:%02x:%02x:%02x:%02x:%02x\n", dev_mac[0], dev_mac[1],
+		  dev_mac[2], dev_mac[3], dev_mac[4], dev_mac[5]);
+
+out:
+	mutex_unlock(&macaddr_lock);
+	return ret;
 }
 
 static void smsc95xx_init_mac_address(struct usbnet *dev)
