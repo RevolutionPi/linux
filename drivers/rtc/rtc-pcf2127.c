@@ -613,6 +613,19 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 	}
 
 	/*
+	 * Disable the Power-On Reset Override facility to start normal
+	 * operation. If the operation should fail, just move on. The RTC should
+	 * work fine, but functions like watchdog and alarm interrupts might
+	 * not work.
+	 */
+	ret = regmap_clear_bits(pcf2127->regmap, PCF2127_REG_CTRL1,
+				PCF2127_BIT_CTRL1_POR_OVRD);
+	if (ret) {
+		dev_err(dev, "%s: can't disable PORO (ctrl1).\n", __func__);
+		dev_warn(dev, "Watchdog and alarm functions might not work properly\n");
+	}
+
+	/*
 	 * Watchdog timer enabled and reset pin /RST activated when timed out.
 	 * Select 1Hz clock source for watchdog timer.
 	 * Note: Countdown timer disabled and not available.
