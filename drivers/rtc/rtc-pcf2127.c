@@ -57,6 +57,9 @@
 #define PCF2127_REG_ALARM_DM		0x0D
 #define PCF2127_REG_ALARM_DW		0x0E
 #define PCF2127_BIT_ALARM_AE			BIT(7)
+/* CLKOUT control register */
+#define PCF2127_REG_CLKOUT		0x0f
+#define PCF2127_BIT_CLKOUT_OTPR			BIT(5)
 /* Watchdog registers */
 #define PCF2127_REG_WD_CTL		0x10
 #define PCF2127_BIT_WD_CTL_TF0			BIT(0)
@@ -624,6 +627,14 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 		dev_err(dev, "%s: can't disable PORO (ctrl1).\n", __func__);
 		dev_warn(dev, "Watchdog and alarm functions might not work properly\n");
 	}
+
+	ret = regmap_set_bits(pcf2127->regmap, PCF2127_REG_CLKOUT,
+			      PCF2127_BIT_CLKOUT_OTPR);
+	if (ret < 0) {
+		dev_err(dev, "%s: OTP refresh (clkout_ctrl) failed.\n", __func__);
+		return ret;
+	}
+	msleep(100);
 
 	/*
 	 * Watchdog timer enabled and reset pin /RST activated when timed out.
