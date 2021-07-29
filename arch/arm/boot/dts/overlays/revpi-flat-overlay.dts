@@ -111,6 +111,17 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
+			gpio-line-names = "SPI","RST",	"",	"",	"WDE",
+				/*5*/	"WDP",	"CS2",	"CS1",	"CS0",	"",
+				/*10*/	"",	"",	"",	"UEK",	"TX0",
+				/*15*/	"RX0",	"PWR_R","RTS0",	"",	"RLY",
+				/*20*/	"",	"MBUS",	"",	"",	"",
+				/*25*/	"",	"",	"",	"",	"",
+				/*30*/	"CS3",	"RTS1",	"TX1",	"RX1",	"",
+				/*35*/	"",	"",	"",	"",	"",
+				/*40*/	"",	"",	"",	"",	"",
+				/*45*/	"",	"",	"",	"",	"",
+				/*50*/	"",	"",	"",	"" ;
 			spi0_cs_pins {
 				/* aout ain mbus tpm */
 				brcm,pins     = <8 7 6 30>;
@@ -196,6 +207,10 @@
 				reg = <0x20>;
 				gpio-controller;
 				#gpio-cells = <2>;
+				gpio-line-names = "A1_G","A1_R","A2_G",	"A2_R",
+					/*4*/	"A3_G",	"A3_R", "A4_G",	"A4_R",
+					/*8*/	"A5_G",	"A5_R",	"",	"",
+					/*12*/	"",	"",	"RS0", "RS1";
 				status = "okay";
 			};
 

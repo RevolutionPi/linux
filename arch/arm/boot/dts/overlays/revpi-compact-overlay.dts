@@ -97,6 +97,17 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
+			gpio-line-names = "",	"",	"",	"",	"",
+				/*5*/ 	"",	"",	"",	"",	"",
+				/*10*/ 	"",	"",	"",	"",	"TX",
+				/*15*/	"RX",	"",	"SPI",	"ETH1",	"DB0",
+				/*20*/	"DB1",	"",	"FLT",	"",	"",
+				/*25*/	"",	"MDS",	"",	"FAUL",	"",
+				/*30*/	"A1_G",	"",	"A2_G",	"A2_R",	"A1_R",
+				/*35*/	"PRW_R","DIN",	"DOF",	"RTS",	"TERM",
+				/*40*/	"MISO",	"MOSI",	"CLK",	"AOUT",	"AIN",
+				/*45*/	"DOUT",	"",	"",	"",	"",
+				/*50*/	"",	"",	"",	"";
 			spi0_cs_pins {
 				/* free free eth1 */
 				brcm,pins     = <8 7 17>;
