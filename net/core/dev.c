@@ -3878,7 +3878,6 @@ EXPORT_SYMBOL(dev_loopback_xmit);
 static struct sk_buff *
 sch_handle_egress(struct sk_buff *skb, int *ret, struct net_device *dev)
 {
-#ifdef CONFIG_NET_CLS_ACT
 	struct mini_Qdisc *miniq = rcu_dereference_bh(dev->miniq_egress);
 	struct tcf_result cl_res;
 
@@ -3913,23 +3912,10 @@ sch_handle_egress(struct sk_buff *skb, int *ret, struct net_device *dev)
 	default:
 		break;
 	}
-#endif /* CONFIG_NET_CLS_ACT */
+
 	return skb;
 }
 #endif /* CONFIG_NET_EGRESS */
-
-static inline int nf_egress(struct sk_buff *skb)
-{
-	if (nf_hook_egress_active(skb)) {
-		int ret;
-
-		rcu_read_lock();
-		ret = nf_hook_egress(skb);
-		rcu_read_unlock();
-		return ret;
-	}
-	return 0;
-}
 
 #ifdef CONFIG_XPS
 static int __get_xps_queue_idx(struct net_device *dev, struct sk_buff *skb,
@@ -4117,16 +4103,13 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 	qdisc_pkt_len_init(skb);
 #ifdef CONFIG_NET_CLS_ACT
 	skb->tc_at_ingress = 0;
-#endif
-#ifdef CONFIG_NET_EGRESS
+# ifdef CONFIG_NET_EGRESS
 	if (static_branch_unlikely(&egress_needed_key)) {
-		if (nf_egress(skb) < 0)
-			goto out;
-
 		skb = sch_handle_egress(skb, &rc, dev);
 		if (!skb)
 			goto out;
 	}
+# endif
 #endif
 	/* If device/qdisc don't need skb->dst, release it right now while
 	 * its hot in this cpu cache.
