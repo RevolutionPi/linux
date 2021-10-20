@@ -36,6 +36,11 @@
 				regulator-always-on;
 			};
 
+			wl_on: reg_wl {
+				compatible = "mmc-pwrseq-simple";
+				reset-gpios = <&expander 10 GPIO_ACTIVE_LOW>;
+			};
+
 			watchdog: watchdog {
 				pinctrl-names = "default";
 				pinctrl-0 = <&watchdog_gpio4>;
@@ -337,6 +342,7 @@
 			bus-width = <4>;
 			non-removable;
 			max-frequency = <28000000>;
+			mmc-pwrseq = <&wl_on>;
 
 			wlan0: wifi@1 {
 				reg = <1>;
