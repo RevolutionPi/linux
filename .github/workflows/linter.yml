@@ -1,10 +1,10 @@
 name: Linter
 on:
-  - push
+  #- push
   - pull_request
 jobs:      
   checkpatch_linter:
-    name: checkpatch linter
+    name: checkpatch
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
