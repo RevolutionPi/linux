@@ -1,0 +1,13 @@
+name: Build
+on:
+  pull_request:
+    types:
+      - labeled
+jobs:
+  kernelbakery_snapshot:
+    name: snapshot
+    if: ${{ github.event.label.name == 'snapshot-packages' }}
+    uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
+    with:
+      kernelbakery_branch: devel/5.10
+      picontrol_branch: devel/revpi-5.10
