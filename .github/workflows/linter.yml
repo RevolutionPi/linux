@@ -1,8 +1,7 @@
 name: Linter
 on:
-  #- push
   - pull_request
-jobs:      
+jobs:
   checkpatch_linter:
     name: checkpatch
     runs-on: ubuntu-latest
