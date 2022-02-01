@@ -1,0 +1,13 @@
+name: Build Nightly
+on:
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  kernelbakery_snapshot:
+    name: build kernel
+    uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-release.yml@main
+    with:
+      kernelbakery_branch: devel/5.10
+      picontrol_branch: devel/revpi-5.10
+      release_name: revpi-kernel-5.10-nightly
