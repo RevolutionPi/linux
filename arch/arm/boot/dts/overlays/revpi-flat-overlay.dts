@@ -284,6 +284,8 @@
 	fragment@7 {
 		target = <&usb>;
 		__overlay__ {
+			dr_mode = "host";
+			status = "okay";
 			#address-cells = <1>;
 			#size-cells = <0>;
 
