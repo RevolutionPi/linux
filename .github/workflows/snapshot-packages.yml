@@ -11,6 +11,7 @@ jobs:
     with:
       kernelbakery_branch: devel/5.10
       picontrol_branch: devel/revpi-5.10
+      build_commit: ${{ github.event.pull_request.head.sha }}
   link_artifacts:
     name: link artifacts in PR
     if: ${{ (github.event_name == 'pull_request' && github.event.label.name == 'snapshot-packages') }}
