@@ -1,15 +1,12 @@
 name: Build
 on:
-  push:
-    branches:
-      - devel/revpi-5.10
   pull_request:
     types:
       - labeled
 jobs:
   kernelbakery_snapshot:
     name: snapshot
-    if: ${{ (github.event_name == 'pull_request' && github.event.label.name == 'snapshot-packages') || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'pull_request' && github.event.label.name == 'snapshot-packages'}}
     uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
     with:
       kernelbakery_branch: devel/5.10
