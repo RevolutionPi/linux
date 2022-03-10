@@ -21,6 +21,7 @@
 #include <linux/pnp.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
+#include <linux/of_gpio.h>
 #include <linux/wait.h>
 #include <linux/acpi.h>
 #include <linux/freezer.h>
@@ -919,6 +920,23 @@ static const struct tpm_class_ops tpm_tis = {
 	.clk_enable = tpm_tis_clkrun_enable,
 };
 
+static int tpm_tis_spi_parse_dt(struct device *dev, struct tpm_tis_data *data)
+{
+	struct gpio_desc *desc;
+
+	desc = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
+	if (IS_ERR(desc)) {
+		if (PTR_ERR(desc) == -EPROBE_DEFER) {
+			return -EPROBE_DEFER;
+		}
+	} else {
+		gpiod_set_consumer_name(desc, "TPM RST");
+		data->reset_gpio = desc;
+	}
+
+	return 0;
+}
+
 int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 		      const struct tpm_tis_phy_ops *phy_ops,
 		      acpi_handle acpi_dev_handle)
@@ -949,6 +967,15 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	priv->timeout_min = TPM_TIMEOUT_USECS_MIN;
 	priv->timeout_max = TPM_TIMEOUT_USECS_MAX;
 	priv->phy_ops = phy_ops;
+
+	if (dev->of_node) {
+		rc = tpm_tis_spi_parse_dt(dev, priv);
+		if (rc)
+			return rc;
+	}
+
+	if (priv->phy_ops->unset_reset)
+		priv->phy_ops->unset_reset(priv);
 
 	rc = tpm_tis_read32(priv, TPM_DID_VID(0), &vendor);
 	if (rc < 0)

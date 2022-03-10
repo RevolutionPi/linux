@@ -38,6 +38,9 @@
 
 #define MAX_SPI_FRAMESIZE 64
 
+#define SLB9670_TIME_RSTIN 60		/* ms */
+#define SLB9670_TIME_WRST 2		/* usecs */
+
 /*
  * TCG SPI flow control is documented in section 6.4 of the spec[1]. In short,
  * keep trying to read from the device until MISO goes high indicating the
@@ -231,6 +234,38 @@ static int tpm_tis_spi_probe(struct spi_device *dev,
 	return tpm_tis_spi_init(dev, phy, irq, phy_ops);
 }
 
+static int tpm_tis_slb9670_unset_reset(struct tpm_tis_data *data)
+{
+	/* perform reset sequence */
+	gpiod_set_value(data->reset_gpio, 1);
+	msleep(SLB9670_TIME_RSTIN);
+	gpiod_set_value(data->reset_gpio, 0);
+	udelay(SLB9670_TIME_WRST);
+	gpiod_set_value(data->reset_gpio, 1);
+	msleep(SLB9670_TIME_RSTIN);
+	gpiod_set_value(data->reset_gpio, 0);
+	udelay(SLB9670_TIME_WRST);
+	gpiod_set_value(data->reset_gpio, 1);
+	msleep(SLB9670_TIME_RSTIN);
+
+	return 0;
+}
+
+static int tpm_tis_slb9670_set_reset(struct tpm_tis_data *data)
+{
+	gpiod_set_value(data->reset_gpio, 0);
+	return 0;
+}
+
+static int tpm_tis_slb9670_probe(struct spi_device *spi,
+				 struct tpm_tis_phy_ops *phy_ops)
+{
+	phy_ops->set_reset = tpm_tis_slb9670_set_reset;
+	phy_ops->unset_reset = tpm_tis_slb9670_unset_reset;
+
+	return tpm_tis_spi_probe(spi, phy_ops);
+}
+
 typedef int (*tpm_tis_spi_probe_func)(struct spi_device *,
 				      struct tpm_tis_phy_ops *phy_ops);
 
@@ -267,7 +302,7 @@ static int tpm_tis_spi_remove(struct spi_device *dev)
 
 static const struct spi_device_id tpm_tis_spi_id[] = {
 	{ "st33htpm-spi", (unsigned long)tpm_tis_spi_probe },
-	{ "slb9670", (unsigned long)tpm_tis_spi_probe},
+	{ "slb9670", (unsigned long)tpm_tis_slb9670_probe},
 	{ "tpm_tis_spi", (unsigned long)tpm_tis_spi_probe },
 	{ "tpm_tis-spi", (unsigned long)tpm_tis_spi_probe },
 	{ "cr50", (unsigned long)cr50_spi_probe },
@@ -277,7 +312,7 @@ MODULE_DEVICE_TABLE(spi, tpm_tis_spi_id);
 
 static const struct of_device_id of_tis_spi_match[] = {
 	{ .compatible = "st,st33htpm-spi", .data = tpm_tis_spi_probe },
-	{ .compatible = "infineon,slb9670", .data = tpm_tis_spi_probe},
+	{ .compatible = "infineon,slb9670", .data = tpm_tis_slb9670_probe},
 	{ .compatible = "tcg,tpm_tis-spi", .data = tpm_tis_spi_probe },
 	{ .compatible = "google,cr50", .data = cr50_spi_probe },
 	{}

@@ -94,6 +94,7 @@ struct tpm_tis_data {
 	int irq;
 	bool irq_tested;
 	unsigned long flags;
+	struct gpio_desc *reset_gpio;
 	void __iomem *ilb_base_addr;
 	u16 clkrun_enabled;
 	wait_queue_head_t int_queue;
@@ -105,6 +106,8 @@ struct tpm_tis_data {
 };
 
 struct tpm_tis_phy_ops {
+	int (*set_reset) (struct tpm_tis_data *data);
+	int (*unset_reset) (struct tpm_tis_data *data);
 	int (*read_bytes)(struct tpm_tis_data *data, u32 addr, u16 len,
 			  u8 *result);
 	int (*write_bytes)(struct tpm_tis_data *data, u32 addr, u16 len,
