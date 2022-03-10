@@ -202,15 +202,8 @@ int tpm_tis_spi_init(struct spi_device *spi, struct tpm_tis_spi_phy *phy,
 	return tpm_tis_core_init(&spi->dev, &phy->priv, irq, phy_ops, NULL);
 }
 
-static const struct tpm_tis_phy_ops tpm_spi_phy_ops = {
-	.read_bytes = tpm_tis_spi_read_bytes,
-	.write_bytes = tpm_tis_spi_write_bytes,
-	.read16 = tpm_tis_spi_read16,
-	.read32 = tpm_tis_spi_read32,
-	.write32 = tpm_tis_spi_write32,
-};
-
-static int tpm_tis_spi_probe(struct spi_device *dev)
+static int tpm_tis_spi_probe(struct spi_device *dev,
+			     struct tpm_tis_phy_ops *phy_ops)
 {
 	struct tpm_tis_spi_phy *phy;
 	int irq;
@@ -228,16 +221,29 @@ static int tpm_tis_spi_probe(struct spi_device *dev)
 	else
 		irq = -1;
 
+	phy_ops->read_bytes = tpm_tis_spi_read_bytes;
+	phy_ops->write_bytes = tpm_tis_spi_write_bytes;
+	phy_ops->read16 = tpm_tis_spi_read16;
+	phy_ops->read32 = tpm_tis_spi_read32;
+	phy_ops->write32 = tpm_tis_spi_write32;
+
 	init_completion(&phy->ready);
-	return tpm_tis_spi_init(dev, phy, irq, &tpm_spi_phy_ops);
+	return tpm_tis_spi_init(dev, phy, irq, phy_ops);
 }
 
-typedef int (*tpm_tis_spi_probe_func)(struct spi_device *);
+typedef int (*tpm_tis_spi_probe_func)(struct spi_device *,
+				      struct tpm_tis_phy_ops *phy_ops);
 
 static int tpm_tis_spi_driver_probe(struct spi_device *spi)
 {
 	const struct spi_device_id *spi_dev_id = spi_get_device_id(spi);
+	struct tpm_tis_phy_ops *phy_ops;
 	tpm_tis_spi_probe_func probe_func;
+
+	phy_ops = devm_kzalloc(&spi->dev, sizeof(struct tpm_tis_spi_phy),
+			       GFP_KERNEL);
+	if (!phy_ops)
+		return -ENOMEM;
 
 	probe_func = of_device_get_match_data(&spi->dev);
 	if (!probe_func && spi_dev_id)
@@ -245,7 +251,7 @@ static int tpm_tis_spi_driver_probe(struct spi_device *spi)
 	if (!probe_func)
 		return -ENODEV;
 
-	return probe_func(spi);
+	return probe_func(spi, phy_ops);
 }
 
 static SIMPLE_DEV_PM_OPS(tpm_tis_pm, tpm_pm_suspend, tpm_tis_spi_resume);
@@ -261,7 +267,7 @@ static int tpm_tis_spi_remove(struct spi_device *dev)
 
 static const struct spi_device_id tpm_tis_spi_id[] = {
 	{ "st33htpm-spi", (unsigned long)tpm_tis_spi_probe },
-	{ "slb9670", (unsigned long)tpm_tis_spi_probe },
+	{ "slb9670", (unsigned long)tpm_tis_spi_probe},
 	{ "tpm_tis_spi", (unsigned long)tpm_tis_spi_probe },
 	{ "tpm_tis-spi", (unsigned long)tpm_tis_spi_probe },
 	{ "cr50", (unsigned long)cr50_spi_probe },
@@ -271,7 +277,7 @@ MODULE_DEVICE_TABLE(spi, tpm_tis_spi_id);
 
 static const struct of_device_id of_tis_spi_match[] = {
 	{ .compatible = "st,st33htpm-spi", .data = tpm_tis_spi_probe },
-	{ .compatible = "infineon,slb9670", .data = tpm_tis_spi_probe },
+	{ .compatible = "infineon,slb9670", .data = tpm_tis_spi_probe},
 	{ .compatible = "tcg,tpm_tis-spi", .data = tpm_tis_spi_probe },
 	{ .compatible = "google,cr50", .data = cr50_spi_probe },
 	{}
