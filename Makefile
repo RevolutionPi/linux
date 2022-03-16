@@ -5,6 +5,8 @@ SUBLEVEL = 103
 EXTRAVERSION =
 NAME = Dare mighty things
 
+# CI TEST
+
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
 # More info can be located in ./README
