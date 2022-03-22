@@ -15,7 +15,7 @@ jobs:
     uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
     with:
       kernelbakery_branch: master
-      picontrol_branch: master
+      picontrol_branch: revpi-4.19
   link_artifacts:
     name: link artifacts in PR
     if: ${{ (github.event_name == 'pull_request' && github.event.label.name == 'snapshot-packages') }}
