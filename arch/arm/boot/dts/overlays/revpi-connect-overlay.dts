@@ -107,11 +107,6 @@
 				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
-			conbridge_int_pins: conbridge_int_pins {
-				brcm,pins     = <28>;
-				brcm,function = <BCM2835_FSEL_GPIO_IN>;
-				brcm,pull     = <BCM2835_PUD_OFF>;
-			};
 			i2c1 {
 				/* sda scl */
 				brcm,pins     = <44 45>;
