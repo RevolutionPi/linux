@@ -50,6 +50,9 @@
 
 			leds {
 				compatible = "gpio-leds";
+				pinctrl-names = "default";
+				pinctrl-0 = <&led_pins>;
+
 				power_red {
 					gpios = <&gpio 16 GPIO_ACTIVE_HIGH>;
 					linux,default-trigger = "power_red";
@@ -111,6 +114,12 @@
 						 BCM2835_PUD_DOWN
 						 BCM2835_PUD_OFF
 						 BCM2835_PUD_OFF>;
+			};
+			led_pins: led_pins {
+				/* pwr_red a1_green a1_red a2_green a2_red */
+				brcm,pins     = <16 30 6 32 33>;
+				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
 			rs485_pins: rs485_pins {
 				/* tx rx rts term */
