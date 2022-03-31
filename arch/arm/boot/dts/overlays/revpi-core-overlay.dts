@@ -21,6 +21,9 @@
 
 			pibridge {
 				compatible = "kunbus,pibridge";
+				pinctrl-names = "default";
+				pinctrl-0 = <&sniff_pins>;
+
 				/* Sniff pins 1A and 2A */
 				left-sniff-gpios = <&gpio 42 GPIO_ACTIVE_HIGH>,
 						   <&gpio 28 GPIO_ACTIVE_HIGH>;
@@ -77,9 +80,6 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			pinctrl-names = "default";
-			pinctrl-0 = <&sniff_a_pins>;
-
 			spi0_pins: spi0_pins {
 				/* miso mosi clock */
 				brcm,pins     = <37 38 39>;
@@ -103,11 +103,14 @@
 				brcm,function = <BCM2835_FSEL_ALT2>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
-			sniff_a_pins: pb_sniff_a_pins {
-				/* A2 */
-				brcm,pins     = <28>;
+			sniff_pins: sniff_pins {
+				/* 1A 2A 1B 2B */
+				brcm,pins     = <42 28 43 29>;
 				brcm,function = <BCM2835_FSEL_GPIO_IN>;
-				brcm,pull     = <BCM2835_PUD_DOWN>;
+				brcm,pull     = <BCM2835_PUD_OFF
+						 BCM2835_PUD_DOWN
+						 BCM2835_PUD_OFF
+						 BCM2835_PUD_OFF>;
 			};
 			rs485_pins: rs485_pins {
 				/* tx rx rts term */
