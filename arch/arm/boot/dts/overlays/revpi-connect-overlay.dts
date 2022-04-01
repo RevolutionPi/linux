@@ -120,10 +120,10 @@
 						 BCM2835_FSEL_ALT0
 						 BCM2835_FSEL_ALT3
 						 BCM2835_FSEL_GPIO_OUT>;
-				brcm,pull     = <BCM2835_PUD_DOWN
-						 BCM2835_PUD_DOWN
-						 BCM2835_PUD_DOWN
-						 BCM2835_PUD_UP>;
+				brcm,pull     = <BCM2835_PUD_OFF
+						 BCM2835_PUD_UP
+						 BCM2835_PUD_OFF
+						 BCM2835_PUD_OFF>;
 			};
 		};
 	};
@@ -230,9 +230,10 @@
 	fragment@6 {
 		target = <&uart0>;
 		__overlay__ {
-			linux,rs485-enabled-at-boot-time;
 			pinctrl-names = "default";
 			pinctrl-0 = <&rs485_pins>;
+			linux,rs485-enabled-at-boot-time;
+			status = "okay";
 		};
 	};
 
