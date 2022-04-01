@@ -88,6 +88,9 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&sniff_pins &conbridge_pins>;
+
 			spi0_pins: spi0_pins {
 				/* miso mosi clock */
 				brcm,pins     = <37 38 39>;
@@ -113,6 +116,23 @@
 				/* sda scl */
 				brcm,pins     = <44 45>;
 				brcm,function = <BCM2835_FSEL_ALT2>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			sniff_pins: sniff_pins {
+				/* 1A 2A
+				 * Note: In the schematics they are wrongly named
+				 * PB_SNIFF1b and PB_SNIFF2b
+				 */
+				brcm,pins     = <43 29>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			conbridge_pins: conbridge_pins {
+				/* X2DI, X2DO, WDTrigger */
+				brcm,pins     = <0 1 42>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN
+						 BCM2835_FSEL_GPIO_OUT
+						 BCM2835_FSEL_GPIO_OUT>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
 			led_pins: led_pins {
