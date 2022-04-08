@@ -1,0 +1,221 @@
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Connect
+ */
+
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/{
+	compatible = "brcm,bcm2837";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-connect", "brcm,bcm2837",
+				     "brcm,bcm2836";
+
+			pibridge {
+				compatible = "kunbus,pibridge";
+				/* X2DI, X2DO, WDTrigger */
+				connect-gpios = <&gpio 0 GPIO_ACTIVE_HIGH>,
+						<&gpio 1 GPIO_ACTIVE_HIGH>,
+						<&gpio 42 GPIO_ACTIVE_HIGH>;
+				/* Sniff pins 1A and 2A */
+				left-sniff-gpios = <&gpio 43 GPIO_ACTIVE_HIGH>,
+						   <&gpio 29 GPIO_ACTIVE_HIGH>;
+			};
+
+			leds {
+				compatible = "gpio-leds";
+				pinctrl-names = "default";
+				pinctrl-0 = <&led_pins>;
+				power_red {
+					gpios = <&gpio 16 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "power_red";
+				};
+				a1_green {
+					gpios = <&gpio 30 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "a1_green";
+				};
+				a1_red {
+					gpios = <&gpio  6 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "a1_red";
+				};
+				a2_green {
+					gpios = <&gpio 32 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "a2_green";
+				};
+				a2_red {
+					gpios = <&gpio 33 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "a2_red";
+				};
+				a3_green {
+					gpios = <&gpio 2 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "a3_green";
+				};
+				a3_red {
+					gpios = <&gpio 3 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "a3_red";
+				};
+				led-act {
+					status = "disabled";
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&sniff_pins &conbridge_pins>;
+
+			i2c1_pins: i2c1_pins {
+				/* sda scl */
+				brcm,pins     = <44 45>;
+				brcm,function = <BCM2835_FSEL_ALT2>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			sniff_pins: sniff_pins {
+				/* 1A 2A
+				 * Note: In the schematics they are wrongly named
+				 * PB_SNIFF1b and PB_SNIFF2b
+				 */
+				brcm,pins     = <43 29>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			conbridge_pins: conbridge_pins {
+				/* X2DI, X2DO, WDTrigger */
+				brcm,pins     = <0 1 42>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN
+						 BCM2835_FSEL_GPIO_OUT
+						 BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			led_pins: led_pins {
+				/* pwr_red a1_green a1_red a2_green a2_red a3_green a3_red */
+				brcm,pins     = <16 30 6 32 33 2 3>;
+				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			rs485_pins: rs485_pins {
+				/* tx rx rts term */
+				brcm,pins     = <14 15 17 41>;
+				brcm,function = <BCM2835_FSEL_ALT0
+						 BCM2835_FSEL_ALT0
+						 BCM2835_FSEL_ALT3
+						 BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF
+						 BCM2835_PUD_UP
+						 BCM2835_PUD_OFF
+						 BCM2835_PUD_OFF>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_pins>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rtc@51 {
+				compatible = "nxp,pcf2129";
+				reg = <0x51>;
+				status = "okay";
+			};
+
+			crypto@60 {
+				compatible = "atmel,atecc508a";
+				reg = <0x60>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@4 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&usb>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			hub@1 {
+				/* SMSC LAN9514 */
+				compatible = "usb424,9514";
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				eth0: ethernet@1 {
+					compatible = "usb424,ec00";
+					reg = <1>;
+				};
+
+				hub@5 {
+					/* SMSC LAN9512 */
+					compatible = "usb424,9512";
+					reg = <5>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					eth1: ethernet@1 {
+						compatible = "usb424,ec00";
+						reg = <1>;
+					};
+
+					uart@2 {
+						/* FTDI FT232R (front) */
+						compatible = "usb403,6001";
+						reg = <2>;
+					};
+
+					uart@3 {
+						/* FTDI FT232R (conbridge) */
+						compatible = "usb403,6001";
+						reg = <3>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&uart0>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rs485_pins>;
+			linux,rs485-enabled-at-boot-time;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		eth0_mac_hi = <&eth0>,"local-mac-address:0";
+		eth0_mac_lo = <&eth0>,"local-mac-address;4";
+		eth1_mac_hi = <&eth1>,"local-mac-address:0";
+		eth1_mac_lo = <&eth1>,"local-mac-address;4";
+	};
+};
