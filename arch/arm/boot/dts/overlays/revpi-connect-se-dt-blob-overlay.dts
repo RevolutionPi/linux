@@ -1,0 +1,7 @@
+/*
+ * Device tree blob overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Connect SE
+ */
+
+#include "revpi-connect-dt-blob-overlay.dts"
