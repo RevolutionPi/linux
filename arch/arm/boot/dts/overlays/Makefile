@@ -220,6 +220,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	revpi-compact-dt-blob.dtbo \
 	revpi-connect.dtbo \
 	revpi-connect-dt-blob.dtbo \
+	revpi-connect-se.dtbo \
+	revpi-connect-se-dt-blob.dtbo \
 	revpi-con-can.dtbo \
 	revpi-flat.dtbo \
 	revpi-flat-dt-blob.dtbo \
