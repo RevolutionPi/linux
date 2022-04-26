@@ -91,17 +91,6 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			spi0_pins: spi0_pins {
-				/* miso mosi clock */
-				brcm,pins     = <37 38 39>;
-				brcm,function = <BCM2835_FSEL_ALT0>;
-				brcm,pull     = <BCM2835_PUD_OFF>;
-			};
-			spi0_cs_pins: spi0_cs_pins {
-				brcm,pins     = <36 35>;
-				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-				brcm,pull     = <BCM2835_PUD_OFF>;
-			};
 			eth2_int_pins: eth2_int_pins {
 				brcm,pins     = <8>;
 				brcm,function = <BCM2835_FSEL_GPIO_IN>;
@@ -110,12 +99,6 @@
 			eth2_reset_pins: eth2_reset_pins {
 				brcm,pins     = <40>;
 				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-				brcm,pull     = <BCM2835_PUD_OFF>;
-			};
-			i2c1_pins: i2c1_pins {
-				/* sda scl */
-				brcm,pins     = <44 45>;
-				brcm,function = <BCM2835_FSEL_ALT2>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
 			sniff_pins: sniff_pins {
@@ -157,6 +140,16 @@
 	};
 
 	fragment@2 {
+		target = <&i2c1_pins>;
+		__overlay__ {
+			/* sda scl */
+			brcm,pins     = <44 45>;
+			brcm,function = <BCM2835_FSEL_ALT2>;
+			brcm,pull     = <BCM2835_PUD_OFF>;
+		};
+	};
+
+	fragment@3 {
 		target = <&i2c1>;
 		__overlay__ {
 			pinctrl-names = "default";
@@ -179,14 +172,33 @@
 		};
 	};
 
-	fragment@3 {
+	fragment@4 {
 		target = <&spidev1>;
 		__overlay__ {
 			status = "disabled";
 		};
 	};
 
-	fragment@4 {
+	fragment@5 {
+		target = <&spi0_pins>;
+		__overlay__ {
+			/* miso mosi clock */
+			brcm,pins     = <37 38 39>;
+			brcm,function = <BCM2835_FSEL_ALT0>;
+			brcm,pull     = <BCM2835_PUD_OFF>;
+		};
+	};
+
+	fragment@6 {
+		target = <&spi0_cs_pins>;
+		__overlay__ {
+			brcm,pins     = <36 35>;
+			brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+			brcm,pull     = <BCM2835_PUD_OFF>;
+		};
+	};
+
+	fragment@7 {
 		target = <&spi0>;
 		__overlay__ {
 			pinctrl-names = "default";
@@ -213,7 +225,7 @@
 		};
 	};
 
-	fragment@5 {
+	fragment@8 {
 		target = <&usb>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -259,7 +271,7 @@
 		};
 	};
 
-	fragment@6 {
+	fragment@9 {
 		target = <&uart0>;
 		__overlay__ {
 			pinctrl-names = "default";
