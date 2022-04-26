@@ -91,13 +91,13 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			spi0_pins: spi0_pins {
+			revpi_spi0_pins: revpi_spi0_pins {
 				/* miso mosi clock */
 				brcm,pins     = <37 38 39>;
 				brcm,function = <BCM2835_FSEL_ALT0>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
-			spi0_cs_pins: spi0_cs_pins {
+			revpi_spi0_cs_pins: revpi_spi0_cs_pins {
 				brcm,pins     = <36 35>;
 				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
@@ -112,7 +112,7 @@
 				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
-			i2c1_pins: i2c1_pins {
+			revpi_i2c1_pins: revpi_i2c1_pins {
 				/* sda scl */
 				brcm,pins     = <44 45>;
 				brcm,function = <BCM2835_FSEL_ALT2>;
@@ -160,7 +160,7 @@
 		target = <&i2c1>;
 		__overlay__ {
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2c1_pins>;
+			pinctrl-0 = <&revpi_i2c1_pins>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
@@ -190,7 +190,7 @@
 		target = <&spi0>;
 		__overlay__ {
 			pinctrl-names = "default";
-			pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+			pinctrl-0 = <&revpi_spi0_pins &revpi_spi0_cs_pins>;
 			cs-gpios = <&gpio 36 GPIO_ACTIVE_LOW>,
 				   <&gpio 35 GPIO_ACTIVE_LOW>;
 			#address-cells = <1>;
