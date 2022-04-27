@@ -17,20 +17,16 @@
 		};
 	};
 
-	fragment@1 {
-		target = <&gpio>;
+	fragment@6 {
+		target = <&spi0_cs_pins>;
 		__overlay__ {
-			spi0_cs_pins: spi0_cs_pins {
-				brcm,pins     = <36>;
-				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-				brcm,pull     = <BCM2835_PUD_OFF>;
-			};
-			/delete-node/ eth2_int_pins;
-			/delete-node/ eth2_reset_pins;
+			brcm,pins     = <36 35>;
+			brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+			brcm,pull     = <BCM2835_PUD_OFF>;
 		};
 	};
 
-	fragment@4 {
+	fragment@7 {
 		target = <&spi0>;
 		__overlay__ {
 			cs-gpios = <&gpio 36 GPIO_ACTIVE_LOW>;
