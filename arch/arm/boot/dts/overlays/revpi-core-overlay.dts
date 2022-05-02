@@ -186,7 +186,7 @@
 		};
 	};
 
-	frgment@8 {
+	fragment@8 {
 		target = <&spi0>;
 		__overlay__ {
 			pinctrl-names = "default";
