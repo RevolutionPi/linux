@@ -1,0 +1,82 @@
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Core 3 (2022)
+ * RevPi Core 3+ (2022)
+ */
+
+#include "revpi-core-overlay.dts"
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/{
+	compatible = "brcm,bcm2837";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-core-2022", "brcm,bcm2837";
+			/delete-node/ regulator_pbrst;
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			/delete-node/ eth1_2_reset_pins;
+
+			pileft_pins: pileft_pins {
+				brcm,pins     = <13 21>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+
+			piright_pins: piright_pins {
+				brcm,pins     = <12 20>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+		};
+	};
+
+	fragment@8 {
+		target = <&spi0>;
+		__overlay__ {
+			/delete-node/ ethernet@0;
+			/delete-node/ ethernet@1;
+
+			/* The setting of spi-max-frequency refers description in revpi-core-2022. */
+			pileft: ethernet@0 {
+				/* PiBridge Ethernet left */
+				compatible = "micrel,ks8851";
+				reg = <0>;
+				spi-max-frequency = <20000000>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pileft_pins>;
+				interrupt-parent = <&gpio>;
+				#interrupt-cells = <2>;
+				interrupts = <13 IRQ_TYPE_LEVEL_LOW>;
+				reset-gpios = <&gpio 21 GPIO_ACTIVE_HIGH>;
+				status = "okay";
+			};
+
+			piright: ethernet@1 {
+				/* PiBridge Ethernet right */
+				compatible = "micrel,ks8851";
+				reg = <1>;
+				spi-max-frequency = <20000000>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&piright_pins>;
+				interrupt-parent = <&gpio>;
+				#interrupt-cells = <2>;
+				interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+				reset-gpios = <&gpio 20 GPIO_ACTIVE_HIGH>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		/delete-property/ eth0_mac_hi;
+		/delete-property/ eth0_mac_lo;
+	};
+};
