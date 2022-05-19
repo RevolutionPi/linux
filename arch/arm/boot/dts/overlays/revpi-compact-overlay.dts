@@ -304,10 +304,15 @@
 
 	fragment@7 {
 		target = <&usb>;
-		__overlay__ {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		dwc2_usb: __overlay__ {
+			compatible = "brcm,bcm2835-usb";
 			dr_mode = "host";
-			#address-cells = <1>;
-			#size-cells = <0>;
+			g-np-tx-fifo-size = <32>;
+			g-rx-fifo-size = <558>;
+			g-tx-fifo-size = <512 512 512 512 512 256 256>;
+			status = "okay";
 
 			hub@1 {
 				compatible = "usb424,9514"; /* SMSC LAN9514 */
