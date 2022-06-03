@@ -73,14 +73,6 @@
 					gpios = <&gpio 33 GPIO_ACTIVE_HIGH>;
 					linux,default-trigger = "a2_red";
 				};
-				a3_green {
-					gpios = <&gpio 2 GPIO_ACTIVE_HIGH>;
-					linux,default-trigger = "a3_green";
-				};
-				a3_red {
-					gpios = <&gpio 3 GPIO_ACTIVE_HIGH>;
-					linux,default-trigger = "a3_red";
-				};
 				led-act {
 					status = "disabled";
 				};
@@ -120,7 +112,7 @@
 			};
 			led_pins: led_pins {
 				/* pwr_red a1_green a1_red a2_green a2_red a3_green a3_red */
-				brcm,pins     = <16 30 6 32 33 2 3>;
+				brcm,pins     = <16 30 6 32 33>;
 				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
