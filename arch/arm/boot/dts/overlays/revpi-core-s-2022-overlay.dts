@@ -1,0 +1,19 @@
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Core S (2022)
+ */
+
+ #include "revpi-core-2022-overlay.dts"
+
+/{
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-core-s-2022",
+				     "kunbus,revpi-core", "brcm,bcm2711";
+		};
+	};
+};
