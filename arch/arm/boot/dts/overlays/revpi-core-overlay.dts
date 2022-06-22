@@ -197,6 +197,13 @@
 			#size-cells = <0>;
 			status = "okay";
 
+			/*
+			 The spi-max-frequency is set to 20MHz because of hardware limitations.
+			 The KSZ8851 support up to 40MHz, but because of the poor signal quality of the
+			 SPI on the BCM28xx/BCM27xx only ~29MHz can be achieved. To be on the safe
+			 side we limit the spi-max-frequency to 20MHz.
+			 Even for this the drive strength needs to be at least 8mA.
+			*/
 			pileft: ethernet@0 {
 				/* PiBridge Ethernet left */
 				compatible = "micrel,ks8851";
