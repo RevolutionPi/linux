@@ -14,7 +14,8 @@
 	fragment@0 {
 		target-path = "/";
 		__overlay__ {
-			compatible = "kunbus,revpi-core-2022", "brcm,bcm2837";
+			compatible = "kunbus,revpi-core-2022",
+				     "kunbus,revpi-core", "brcm,bcm2837";
 			/delete-node/ regulator_pbrst;
 		};
 	};
