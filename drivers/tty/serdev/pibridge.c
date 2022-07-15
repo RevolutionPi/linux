@@ -154,6 +154,7 @@ int pibridge_send(u8 *buf, u16 len)
 
 	return ret;
 }
+EXPORT_SYMBOL(pibridge_send);
 
 int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 {
@@ -175,12 +176,14 @@ int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 				len, ret, jiffies, kfifo_len(&pi->read_fifo));
 	return ret;
 }
+EXPORT_SYMBOL(pibridge_recv_timeout);
 
 int pibridge_recv(u8 *buf, u16 len)
 {
 	/* using default timeout REV_PI_IO_TIMEOUT */
 	return pibridge_recv_timeout(buf, len, REV_PI_IO_TIMEOUT);
 }
+EXPORT_SYMBOL(pibridge_recv);
 
 #pragma pack(1)
 struct pibridge_pkthdr_gate{
