@@ -116,7 +116,7 @@ static void pibridge_remove(struct serdev_device *serdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id pibridge_of_match[] = {
-	{ .compatible = "kunbus,pibridge" },
+	{ .compatible = "kunbus,pi-bridge" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, pibridge_of_match);
@@ -124,7 +124,7 @@ MODULE_DEVICE_TABLE(of, pibridge_of_match);
 
 static struct serdev_device_driver pibridge_driver = {
 	.driver	= {
-		.name		= "pibridge",
+		.name		= "pi-bridge",
 		.of_match_table	= of_match_ptr(pibridge_of_match),
 	},
 	.probe	= pibridge_probe,
