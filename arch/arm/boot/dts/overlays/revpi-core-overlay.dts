@@ -259,8 +259,8 @@
 			linux,rs485-enabled-at-boot-time;
 			status = "okay";
 
-			pibridge {
-				compatible = "kunbus,pibridge";
+			pi_bridge {
+				compatible = "kunbus,pi-bridge";
 				current-speed = <115200>;
 			};
 		};
