@@ -259,6 +259,9 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 				dst, cmd, snd_len);
 		return -EIO;
 	}
+	/* Do not wait for a response in case of a broadcast address */
+	if (dst == 0xff)
+		return 0;
 
 	if (sizeof(pkthdr) != pibridge_recv_timeout((u8 *)&pkthdr, sizeof(pkthdr), tmt)){
 		pb_err(25, "receive head error in gate-req(hdr_len:%d, timeout:%d, data0:%c)\n",
