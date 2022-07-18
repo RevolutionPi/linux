@@ -186,14 +186,13 @@ int pibridge_recv(u8 *buf, u16 len)
 }
 EXPORT_SYMBOL(pibridge_recv);
 
-#pragma pack(1)
-struct pibridge_pkthdr_gate{
+struct pibridge_pkthdr_gate {
 	u8	dst;
 	u8	src;
 	u16	cmd;
 	u16	seq;
 	u8	len;
-};
+} __attribute__((packed));
 
 u8 pibridge_crc8(u8 base, u8 *data, u16 len)
 {
@@ -324,6 +323,7 @@ int pibridge_req_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 			rcv_buf, rcv_len, REV_PI_IO_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_req_gate);
+
 struct pibridge_pkthdr_io
 {
 	u8 addr	:6;
@@ -332,7 +332,7 @@ struct pibridge_pkthdr_io
 
 	u8 len	:5;
 	u8 cmd	:3;	/* 0 for broadcast*/
-};
+} __attribute__((packed));
 
 int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 {
