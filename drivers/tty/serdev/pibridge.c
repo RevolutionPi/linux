@@ -216,12 +216,12 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
 	pkthdr.seq = 0;
 	pkthdr.len = snd_len;
 
-	if (pibridge_send((u8 *)&pkthdr, sizeof(pkthdr))){
+	if (pibridge_send((u8 *)&pkthdr, sizeof(pkthdr)) < 0){
 		pb_err(25, "send head error in gate-send\n");
 		return -EIO;
 	}
 	if (snd_len != 0){
-		if (pibridge_send(snd_buf, snd_len)){
+		if (pibridge_send(snd_buf, snd_len) < 0){
 			pb_err(25, "send data error in gate-send(len:%d)\n",
 					snd_len);
 			return -EIO;
@@ -234,7 +234,7 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
 		crc = pibridge_crc8(crc, snd_buf, snd_len);
 	}
 
-	if (pibridge_send(&crc, sizeof(u8))){
+	if (pibridge_send(&crc, sizeof(u8)) < 0){
 		pb_err(25, "send crc error in gate-send\n");
 		return -EIO;
 	}
@@ -344,14 +344,14 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 	pkthdr.cmd	= cmd;
 	pkthdr.len	= snd_len;
 
-	if (pibridge_send((u8 *)&pkthdr, sizeof(pkthdr))){
+	if (pibridge_send((u8 *)&pkthdr, sizeof(pkthdr)) < 0){
 		pb_err(25, "send head error in io-send(len:%d)\n",
 				sizeof(pkthdr));
 		return -EIO;
 	}
 
 	if (snd_len != 0){
-		if (pibridge_send(snd_buf, snd_len)){
+		if (pibridge_send(snd_buf, snd_len) < 0){
 			pb_err(25, "send data error in io-send(len:%d)\n",
 					snd_len);
 			return -EIO;
@@ -359,7 +359,7 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 	}
 	crc = pibridge_crc8(0, (u8 *)&pkthdr, sizeof(pkthdr));
 	crc = pibridge_crc8(crc, snd_buf, snd_len);
-	if (pibridge_send(&crc, sizeof(u8))){
+	if (pibridge_send(&crc, sizeof(u8)) < 0){
 		pb_err(25, "send crc error in io-send\n");
 		return -EIO;
 	}
