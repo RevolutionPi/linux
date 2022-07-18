@@ -29,7 +29,7 @@ struct pibridge {
 static struct pibridge *pibridge_s; /* unique instance of the pibridge */
 
 static int pibridge_receive_buf(struct serdev_device *serdev,
-		const unsigned char *buf, size_t count)
+				const unsigned char *buf, size_t count)
 {
 	struct pibridge *pi = serdev_device_get_drvdata(serdev);
 	int ret;
@@ -57,7 +57,6 @@ static int pibridge_parse_dt(struct serdev_device *serdev)
 
 	of_property_read_u32(node, "current-speed", &speed);
 	serdev_device_set_baudrate(serdev, speed);
-
 	/* RTS is used to drive Transmit Enable pin, hence no flow control */
 	serdev_device_set_flow_control(serdev, false);
 
@@ -110,7 +109,6 @@ static void pibridge_remove(struct serdev_device *serdev)
 	struct pibridge *pi = serdev_device_get_drvdata(serdev);
 
 	serdev_device_close(serdev);
-
 	kfifo_free(&pi->read_fifo);
 };
 
@@ -162,10 +160,11 @@ int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 	int jiffies;
 	int ret;
 
-	jiffies = wait_event_timeout(pi->read_queue, kfifo_len(&pi->read_fifo) >= len,
-			msecs_to_jiffies(timeout));
+	jiffies = wait_event_timeout(pi->read_queue,
+				     kfifo_len(&pi->read_fifo) >= len,
+				     msecs_to_jiffies(timeout));
 	mutex_lock(&pi->lock);
-	if (jiffies){
+	if (jiffies) {
 		ret = kfifo_out(&pi->read_fifo, buf, len);
 	} else {
 		ret = 0;
@@ -173,7 +172,7 @@ int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 	mutex_unlock(&pi->lock);
 	if (ret < len)
 		pb_err(25, "receive message error(len:%d, ret:%d, jiffies:%d, fifo:%d)\n",
-				len, ret, jiffies, kfifo_len(&pi->read_fifo));
+		       len, ret, jiffies, kfifo_len(&pi->read_fifo));
 	return ret;
 }
 EXPORT_SYMBOL(pibridge_recv_timeout);
@@ -186,7 +185,7 @@ int pibridge_recv(u8 *buf, u16 len)
 EXPORT_SYMBOL(pibridge_recv);
 
 #pragma pack(1)
-struct pibridge_pkthdr_gate{
+struct pibridge_pkthdr_gate {
 	u8	dst;
 	u8	src;
 	u16	cmd;
@@ -198,9 +197,8 @@ u8 pibridge_crc8(u8 base, u8 *data, u16 len)
 {
 	u8 ret = base;
 
-	while (len--) {
+	while (len--)
 		ret = ret ^ data[len];
-	}
 	return ret;
 }
 
@@ -215,25 +213,24 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
 	pkthdr.seq = 0;
 	pkthdr.len = snd_len;
 
-	if (pibridge_send((u8 *)&pkthdr, sizeof(pkthdr)) < 0){
+	if (pibridge_send((u8 *) &pkthdr, sizeof(pkthdr)) < 0) {
 		pb_err(25, "send head error in gate-send\n");
 		return -EIO;
 	}
-	if (snd_len != 0){
-		if (pibridge_send(snd_buf, snd_len) < 0){
+	if (snd_len != 0) {
+		if (pibridge_send(snd_buf, snd_len) < 0) {
 			pb_err(25, "send data error in gate-send(len:%d)\n",
-					snd_len);
+			       snd_len);
 			return -EIO;
 		}
 
 	}
 
-	crc = pibridge_crc8(0, (u8 *)&pkthdr, sizeof(pkthdr));
-	if (snd_len != 0){
+	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
+	if (snd_len != 0)
 		crc = pibridge_crc8(crc, snd_buf, snd_len);
-	}
 
-	if (pibridge_send(&crc, sizeof(u8)) < 0){
+	if (pibridge_send(&crc, sizeof(u8)) < 0) {
 		pb_err(25, "send crc error in gate-send\n");
 		return -EIO;
 	}
@@ -253,64 +250,64 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 	u8 crc_rcv;
 	u8 crc;
 
-
-	if (pibridge_req_send_gate(dst, cmd, snd_buf, snd_len)){
+	if (pibridge_req_send_gate(dst, cmd, snd_buf, snd_len)) {
 		pb_err(25, "send message error in gate-req(dst:%d, cmd:%d, len:%d)\n",
-				dst, cmd, snd_len);
+		       dst, cmd, snd_len);
 		return -EIO;
 	}
 	/* Do not wait for a response in case of a broadcast address */
 	if (dst == 0xff)
 		return 0;
 
-	if (sizeof(pkthdr) != pibridge_recv_timeout((u8 *)&pkthdr, sizeof(pkthdr), tmt)){
+	if (sizeof(pkthdr) != pibridge_recv_timeout((u8 *) &pkthdr,
+						    sizeof(pkthdr), tmt)) {
 		pb_err(25, "receive head error in gate-req(hdr_len:%d, timeout:%d, data0:%c)\n",
-				sizeof(pkthdr), tmt, snd_buf?snd_buf[0]:0);
+		       sizeof(pkthdr), tmt, snd_buf?snd_buf[0]:0);
 		return -EIO;
 	}
 
 	if (rcv_len != 0) {
-		if (rcv_len != pibridge_recv(rcv_buf, rcv_len)){
-			pb_err(25, "receive data error in gate-req(len:%d)\n", rcv_len);
+		if (rcv_len != pibridge_recv(rcv_buf, rcv_len)) {
+			pb_err(25, "receive data error in gate-req(len:%d)\n",
+			       rcv_len);
 			return -EIO;
 		}
 	}
 
-	if (sizeof(u8) != pibridge_recv(&crc_rcv, sizeof(u8))){
+	if (sizeof(u8) != pibridge_recv(&crc_rcv, sizeof(u8))) {
 		pb_err(25, "receive crc error in gate-req\n");
 		return -EIO;
 	}
 
-	crc = pibridge_crc8(0, (u8 *)&pkthdr, sizeof(pkthdr));
+	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
 
-	if (rcv_len != 0){
+	if (rcv_len != 0)
 		crc = pibridge_crc8(crc, rcv_buf, rcv_len);
-	}
-	if (crc != crc_rcv){
-		return -EBADMSG;
-	}
 
-	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)){
+	if (crc != crc_rcv)
+		return -EBADMSG;
+
+	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)) {
 		pb_err(25, "bad responsed OK code in gate-req(cmd:%d)\n",
-				pkthdr.cmd);
+		       pkthdr.cmd);
 		return -EBADMSG;
 	}
 
-	if (pkthdr.cmd & PIBRIDGE_RESP_ERR){
+	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
 		pb_err(25, "bad responsed ERR code in gate-req(cmd:%d)\n",
-				pkthdr.cmd);
+		       pkthdr.cmd);
 		return -EBADMSG;
 	}
 
-	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd ){
+	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
 		pb_err(25, "bad responsed CMD code in gate-req(cmd:%d)\n",
-				pkthdr.cmd);
+		       pkthdr.cmd);
 		return -EBADMSG;
 	}
 
 	if (rcv_len != pkthdr.len)
 		pb_err(25, "received len is not as expected in gate-req(received:%d, expected:%d)\n",
-				pkthdr.len, rcv_len);
+		       pkthdr.len, rcv_len);
 
 	return 0;
 }
@@ -319,12 +316,12 @@ EXPORT_SYMBOL(pibridge_req_gate_tmt);
 int pibridge_req_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 		u8 *rcv_buf, u16 rcv_len)
 {
-	return pibridge_req_gate_tmt(dst, cmd, snd_buf, snd_len,
-			rcv_buf, rcv_len, REV_PI_IO_TIMEOUT);
+	return pibridge_req_gate_tmt(dst, cmd, snd_buf, snd_len, rcv_buf,
+				     rcv_len, REV_PI_IO_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_req_gate);
-struct pibridge_pkthdr_io
-{
+
+struct pibridge_pkthdr_io {
 	u8 addr	:6;
 	u8 typ	:1;	/* 0 for unicast, 1 for broadcast */
 	u8 rsp	:1;	/*always be 0 for sending, might be 1 for receiving*/
@@ -343,22 +340,23 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 	pkthdr.cmd	= cmd;
 	pkthdr.len	= snd_len;
 
-	if (pibridge_send((u8 *)&pkthdr, sizeof(pkthdr)) < 0){
+	if (pibridge_send((u8 *) &pkthdr, sizeof(pkthdr)) < 0) {
 		pb_err(25, "send head error in io-send(len:%d)\n",
-				sizeof(pkthdr));
+		       sizeof(pkthdr));
 		return -EIO;
 	}
 
-	if (snd_len != 0){
-		if (pibridge_send(snd_buf, snd_len) < 0){
+	if (snd_len != 0) {
+		if (pibridge_send(snd_buf, snd_len) < 0) {
 			pb_err(25, "send data error in io-send(len:%d)\n",
-					snd_len);
+			       snd_len);
 			return -EIO;
 		}
 	}
-	crc = pibridge_crc8(0, (u8 *)&pkthdr, sizeof(pkthdr));
+	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
 	crc = pibridge_crc8(crc, snd_buf, snd_len);
-	if (pibridge_send(&crc, sizeof(u8)) < 0){
+
+	if (pibridge_send(&crc, sizeof(u8)) < 0) {
 		pb_err(25, "send crc error in io-send\n");
 		return -EIO;
 	}
@@ -375,16 +373,17 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf, u16 
 
 	if (pibridge_req_send_io(addr, cmd, snd_buf, snd_len)) {
 		pb_err(25, "send message error in io-req(addr:%d, cmd:%d, len:%d)\n",
-				addr, cmd, snd_len);
+		       addr, cmd, snd_len);
 		return -EIO;
 	}
 
-	if (sizeof(pkthdr) != pibridge_recv((u8 *)&pkthdr, sizeof(pkthdr))) {
+	if (sizeof(pkthdr) !=
+	    pibridge_recv((u8 *) &pkthdr, sizeof(pkthdr))) {
 		pb_err(25, "receive head error in io-req\n");
 		return -EIO;
 	}
 
-	if(rcv_len != 0){
+	if (rcv_len != 0) {
 		if (rcv_len != pibridge_recv(rcv_buf, rcv_len)) {
 			pb_err(25, "receive data error in io-req\n");
 			return -EBADMSG;
@@ -406,8 +405,7 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf, u16 
 
 	if (rcv_len != pkthdr.len)
 		pb_err(25, "received len is not as expected in io-req(received:%d, expected:%d)\n",
-				pkthdr.len, rcv_len);
-
+		       pkthdr.len, rcv_len);
 	return 0;
 }
 EXPORT_SYMBOL(pibridge_req_io);
