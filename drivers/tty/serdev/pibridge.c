@@ -184,14 +184,13 @@ int pibridge_recv(u8 *buf, u16 len)
 }
 EXPORT_SYMBOL(pibridge_recv);
 
-#pragma pack(1)
 struct pibridge_pkthdr_gate {
 	u8	dst;
 	u8	src;
 	u16	cmd;
 	u16	seq;
 	u8	len;
-};
+} __attribute__((packed));
 
 u8 pibridge_crc8(u8 base, u8 *data, u16 len)
 {
