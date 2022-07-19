@@ -13,6 +13,15 @@
 			pin_config {
 			}; // pin_config
 			pin_defines {
+				/* For redesigned Core and Connect with HATs */
+				pin_define@ID_SDA {
+					type = "internal";
+					number = <0>;
+				};
+				pin_define@ID_SCL {
+					type = "internal";
+					number = <1>;
+				};
 			}; // pin_defines
 		};
 
