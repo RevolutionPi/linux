@@ -11,6 +11,10 @@
 	videocore {
 		pins_cm3 {
 			pin_config {
+				/* Increase drive strength in order to improve the signal quality (eg. SPI CLK on Core 3 and Connect)
+				 * NOTE: This will increase the drive strength for the whole GPIO bank 1 and not only pin 39
+				 */
+				pin@p39 { function = "spi"; termination = "no_pulling"; drive_strength_mA = < 8 >; };
 			}; // pin_config
 			pin_defines {
 				/* For redesigned Core and Connect with HATs */
@@ -27,6 +31,10 @@
 
 		pins_cm4s {
 			pin_config {
+				/* Increase drive strength in order to improve the signal quality (eg. SPI CLK on Core S and Connect S)
+				 * NOTE: This will increase the drive strength for the whole GPIO bank 1 and not only pin 39
+				 */
+				pin@p39 { function = "spi"; termination = "no_pulling"; drive_strength_mA = < 8 >; };
 			}; // pin_config
 			pin_defines {
 				/* For Core S/SE and Connect S/SE with HATs */
