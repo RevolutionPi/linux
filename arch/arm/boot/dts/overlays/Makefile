@@ -237,6 +237,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ramoops.dtbo \
 	ramoops-pi4.dtbo \
 	rootmaster.dtbo \
+	revpi-dt-blob.dtbo \
 	revpi-compact.dtbo \
 	revpi-compact-dt-blob.dtbo \
 	revpi-connect.dtbo \

@@ -1,0 +1,26 @@
+/*
+ * Device tree blob overlay for Revolution Pi by KUNBUS
+ *
+ * For all RevPi models with a HAT EEEPROM
+ */
+
+#include "rpi-dt-blob-overlay.dts"
+
+
+/ {
+	videocore {
+		pins_cm3 {
+			pin_config {
+			}; // pin_config
+			pin_defines {
+			}; // pin_defines
+		};
+
+		pins_cm4s {
+			pin_config {
+			}; // pin_config
+			pin_defines {
+			}; // pin_defines
+		};
+	};
+};
