@@ -164,6 +164,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pwm-ir-tx.dtbo \
 	qca7000.dtbo \
 	qca7000-uart0.dtbo \
+	revpi-dt-blob.dtbo \
 	revpi-compact.dtbo \
 	revpi-compact-dt-blob.dtbo \
 	revpi-connect.dtbo \
