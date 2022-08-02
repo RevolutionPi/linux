@@ -194,7 +194,7 @@ struct pibridge_pkthdr_gate {
 	u8	len;
 } __attribute__((packed));
 
-u8 pibridge_crc8(u8 base, u8 *data, u16 len)
+static u8 pibridge_crc8(u8 base, u8 *data, u16 len)
 {
 	u8 ret = base;
 
