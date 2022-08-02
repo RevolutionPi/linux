@@ -28,8 +28,5 @@ config SERIAL_DEV_MUX_PIBRIDGE
           Say Y here if you want to use the PiBridge bus.
 
           If unsure, say N.
-        depends on TTY
-        depends on SERIAL_DEV_BUS != m
-        default n
 
 endif
