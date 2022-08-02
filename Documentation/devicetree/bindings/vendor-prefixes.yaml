@@ -731,6 +731,8 @@ patternProperties:
     description: Sutajio Ko-Usagi PTE Ltd.
   "^kvg,.*":
     description: Kverneland Group
+  "^kunbus,.*":
+    description: KUNBUS GmbH
   "^kyo,.*":
     description: Kyocera Corporation
   "^lacie,.*":
