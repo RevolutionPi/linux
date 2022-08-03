@@ -145,6 +145,14 @@ int pibridge_send(u8 *buf, u16 len)
 }
 EXPORT_SYMBOL(pibridge_send);
 
+void pibridge_clear_fifo(void)
+{
+	mutex_lock(&pibridge_s->lock);
+	kfifo_reset(&pibridge_s->read_fifo);
+	mutex_unlock(&pibridge_s->lock);
+}
+EXPORT_SYMBOL(pibridge_clear_fifo);
+
 int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 {
 	struct pibridge *pi = pibridge_s;

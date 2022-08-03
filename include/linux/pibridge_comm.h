@@ -13,4 +13,5 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len);
 int pibridge_recv(u8 *buf, u16 len);
 int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout);
 int pibridge_send(u8 *buf, u16 len);
+void pibridge_clear_fifo(void);
 #endif	/* _PIBRIDGE_COMM_H */
