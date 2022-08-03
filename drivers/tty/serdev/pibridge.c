@@ -134,11 +134,6 @@ int pibridge_send(u8 *buf, u16 len)
 	int ret;
 
 	ret = serdev_device_write(serdev, buf, len, MAX_SCHEDULE_TIMEOUT);
-	/* read fifo may contain stale bytes */
-	mutex_lock(&pi->lock);
-	kfifo_reset(&pi->read_fifo);
-	mutex_unlock(&pi->lock);
-
 	serdev_device_wait_until_sent(serdev, 0);
 
 	return ret;
@@ -250,6 +245,9 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 	struct pibridge_pkthdr_gate pkthdr;
 	u8 crc_rcv;
 	u8 crc;
+
+	/* Read fifo may contain stale data, so clear it first */
+	pibridge_clear_fifo();
 
 	if (pibridge_req_send_gate(dst, cmd, snd_buf, snd_len)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
@@ -380,6 +378,9 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf, u16 
 	struct pibridge_pkthdr_io pkthdr;
 	u8 crc_rcv;
 	u8 crc;
+
+	/* Read fifo may contain stale data, so clear it first */
+	pibridge_clear_fifo();
 
 	if (pibridge_req_send_io(addr, cmd, snd_buf, snd_len)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
