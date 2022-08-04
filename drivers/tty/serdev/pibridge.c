@@ -158,12 +158,12 @@ int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 				     kfifo_len(&pi->read_fifo) >= len,
 				     msecs_to_jiffies(timeout));
 	mutex_lock(&pi->lock);
-	if (jiffies) {
+	if (kfifo_len(&pi->read_fifo) >= len)
 		ret = kfifo_out(&pi->read_fifo, buf, len);
-	} else {
+	else
 		ret = 0;
-	}
 	mutex_unlock(&pi->lock);
+
 	if (ret < len)
 		dev_warn_ratelimited(&pi->serdev->dev,
 			"receive message error(len:%d, ret:%d, jiffies:%d, fifo:%d)\n",
