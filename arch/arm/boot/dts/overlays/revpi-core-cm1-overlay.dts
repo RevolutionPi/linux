@@ -1,0 +1,31 @@
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Core
+ */
+
+#include "revpi-core-overlay.dts"
+
+/{
+	/delete-node/ fragment@9;
+	fragment@9 {
+		target = <&usb>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			/* Use dwc_otg (instead of dwc2) on CM1 for better performance. */
+			hub@1 {
+				compatible = "usb424,9514"; /* SMSC LAN9514 */
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				eth0: ethernet@1 {
+					compatible = "usb424,ec00";
+					reg = <1>;
+				};
+			};
+		};
+	};
+};

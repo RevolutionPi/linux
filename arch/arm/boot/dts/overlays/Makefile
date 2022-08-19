@@ -175,6 +175,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	revpi-flat.dtbo \
 	revpi-flat-dt-blob.dtbo \
 	revpi-core.dtbo \
+	revpi-core-cm1.dtbo \
 	revpi-core-dt-blob.dtbo \
 	revpi-core-2022.dtbo \
 	revpi-core-s-2022.dtbo \
