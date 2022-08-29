@@ -4,6 +4,7 @@
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/serdev.h>
+#include <linux/pibridge_comm.h>
 #include <linux/wait.h>
 
 #define REV_PI_IO_TIMEOUT           10         // msec
