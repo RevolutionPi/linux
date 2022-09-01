@@ -108,6 +108,25 @@ static void pibridge_remove(struct serdev_device *serdev)
 	kfifo_free(&pi->read_fifo);
 };
 
+static int pibridge_discard_timeout(u16 len, u16 timeout)
+{
+	struct pibridge *pi = pibridge_s;
+	int ret;
+
+	ret = wait_event_timeout(pi->read_queue,
+				 kfifo_len(&pi->read_fifo) >= len,
+				 msecs_to_jiffies(timeout));
+	mutex_lock(&pi->lock);
+	if (kfifo_len(&pi->read_fifo) >= len)
+		ret = 0;
+	else
+		ret = -1;
+	kfifo_reset(&pi->read_fifo);;
+	mutex_unlock(&pi->lock);
+
+	return ret;
+}
+
 #ifdef CONFIG_OF
 static const struct of_device_id pibridge_of_match[] = {
 	{ .compatible = "kunbus,pi-bridge" },
