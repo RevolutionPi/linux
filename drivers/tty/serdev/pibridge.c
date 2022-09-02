@@ -113,9 +113,10 @@ static int pibridge_discard_timeout(u16 len, u16 timeout)
 	struct pibridge *pi = pibridge_s;
 	int ret;
 
-	ret = wait_event_timeout(pi->read_queue,
-				 kfifo_len(&pi->read_fifo) >= len,
-				 msecs_to_jiffies(timeout));
+	wait_event_timeout(pi->read_queue,
+			   kfifo_len(&pi->read_fifo) >= len,
+			   msecs_to_jiffies(timeout));
+
 	mutex_lock(&pi->lock);
 	if (kfifo_len(&pi->read_fifo) >= len)
 		ret = 0;
@@ -263,6 +264,8 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 		u8 *rcv_buf, u16 rcv_len, u16 tmt)
 {
 	struct pibridge_pkthdr_gate pkthdr;
+	u16 to_receive;
+	u16 to_discard;
 	u8 crc_rcv;
 	u8 crc;
 
@@ -287,28 +290,50 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 		return -EIO;
 	}
 
-	if (rcv_len != 0) {
-		if (pibridge_recv(rcv_buf, rcv_len) != rcv_len) {
+	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
+
+	to_receive = min((u16) pkthdr.len, rcv_len);
+	to_discard = pkthdr.len - to_receive;
+
+	if (to_receive) {
+		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
 				"receive data error in gate-req(len:%d)\n",
-				rcv_len);
+				to_receive);
 			return -EIO;
 		}
 	}
 
-	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
+	if (to_discard) {
+		/* The provided buffer was too small. Discard the rest of the
+		   received data as well as the following CRC checksum byte. */
+		if (pibridge_discard_timeout(to_discard + 1, tmt))
+			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+				"failed to discard %u bytes within timeout\n",
+				to_discard);
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"receive crc error in gate-req\n");
-		return -EIO;
+			"received packet truncated (%u bytes missing)\n",
+			to_discard);
+		return -EBADMSG;
+	} else {
+		/* We got the whole data, now get the CRC */
+		if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
+			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+				"failed to receive CRC in gate-req\n");
+			return -EIO;
+		}
+		crc = pibridge_crc8(crc, rcv_buf, pkthdr.len);
+
+		if (crc != crc_rcv)
+			return -EBADMSG;
 	}
 
-	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
-
-	if (rcv_len != 0)
-		crc = pibridge_crc8(crc, rcv_buf, rcv_len);
-
-	if (crc != crc_rcv)
+	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"bad responded CMD code in gate-req(cmd:%d)\n",
+			pkthdr.cmd);
 		return -EBADMSG;
+	}
 
 	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
@@ -323,18 +348,6 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 			pkthdr.cmd);
 		return -EBADMSG;
 	}
-
-	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"bad responded CMD code in gate-req(cmd:%d)\n",
-			pkthdr.cmd);
-		return -EBADMSG;
-	}
-
-	if (rcv_len != pkthdr.len)
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"received len is not as expected in gate-req(received:%d, expected:%d)\n",
-			pkthdr.len, rcv_len);
 
 	return 0;
 }
