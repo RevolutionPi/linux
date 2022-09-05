@@ -8,9 +8,9 @@
 #include <linux/wait.h>
 
 #define PIBRIDGE_BAUDRATE		115200
-#define REV_PI_IO_TIMEOUT           10         // msec
-#define REV_PI_RECV_BUFFER_SIZE     100
-#define REV_PI_BC_ADDR		    0xff
+#define PIBRIDGE_IO_TIMEOUT		10         // msec
+#define PIBRIDGE_RECV_BUFFER_SIZE	100
+#define PIBRIDGE_BC_ADDR		0xff
 
 struct pibridge {
 	struct serdev_device *serdev;
@@ -74,7 +74,7 @@ static int pibridge_probe(struct serdev_device *serdev)
 	mutex_init(&pi->lock);
 	init_waitqueue_head(&pi->read_queue);
 
-	ret = kfifo_alloc(&pi->read_fifo, REV_PI_RECV_BUFFER_SIZE, GFP_KERNEL);
+	ret = kfifo_alloc(&pi->read_fifo, PIBRIDGE_RECV_BUFFER_SIZE, GFP_KERNEL);
 	if (ret)
 		return ret;
 
@@ -186,8 +186,8 @@ EXPORT_SYMBOL(pibridge_recv_timeout);
 
 int pibridge_recv(u8 *buf, u16 len)
 {
-	/* using default timeout REV_PI_IO_TIMEOUT */
-	return pibridge_recv_timeout(buf, len, REV_PI_IO_TIMEOUT);
+	/* using default timeout PIBRIDGE_IO_TIMEOUT */
+	return pibridge_recv_timeout(buf, len, PIBRIDGE_IO_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_recv);
 
@@ -270,7 +270,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 		return -EIO;
 	}
 	/* Do not wait for a response in case of a broadcast address */
-	if (dst == REV_PI_BC_ADDR)
+	if (dst == PIBRIDGE_BC_ADDR)
 		return 0;
 
 	if (pibridge_recv_timeout((u8 *) &pkthdr, sizeof(pkthdr), tmt) !=
@@ -348,7 +348,7 @@ int pibridge_req_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 		u8 *rcv_buf, u16 rcv_len)
 {
 	return pibridge_req_gate_tmt(dst, cmd, snd_buf, snd_len, rcv_buf,
-				     rcv_len, REV_PI_IO_TIMEOUT);
+				     rcv_len, PIBRIDGE_IO_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_req_gate);
 
