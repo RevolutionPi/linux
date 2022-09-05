@@ -172,12 +172,12 @@ EXPORT_SYMBOL(pibridge_clear_fifo);
 int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 {
 	struct pibridge *pi = pibridge_s;
-	int jiffies;
 	int ret;
 
-	jiffies = wait_event_timeout(pi->read_queue,
-				     kfifo_len(&pi->read_fifo) >= len,
-				     msecs_to_jiffies(timeout));
+	wait_event_timeout(pi->read_queue,
+			   kfifo_len(&pi->read_fifo) >= len,
+			   msecs_to_jiffies(timeout));
+
 	mutex_lock(&pi->lock);
 	if (kfifo_len(&pi->read_fifo) >= len)
 		ret = kfifo_out(&pi->read_fifo, buf, len);
@@ -185,10 +185,6 @@ int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 		ret = 0;
 	mutex_unlock(&pi->lock);
 
-	if (ret < len)
-		dev_warn_ratelimited(&pi->serdev->dev,
-			"receive message error(len:%d, ret:%d, jiffies:%d, fifo:%d)\n",
-			len, ret, jiffies, kfifo_len(&pi->read_fifo));
 	return ret;
 }
 EXPORT_SYMBOL(pibridge_recv_timeout);
