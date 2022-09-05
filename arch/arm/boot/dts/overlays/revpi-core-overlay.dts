@@ -261,7 +261,6 @@
 
 			pi_bridge {
 				compatible = "kunbus,pi-bridge";
-				current-speed = <115200>;
 			};
 		};
 	};
