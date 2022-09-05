@@ -7,6 +7,7 @@
 #include <linux/pibridge_comm.h>
 #include <linux/wait.h>
 
+#define PIBRIDGE_BAUDRATE		115200
 #define REV_PI_IO_TIMEOUT           10         // msec
 #define REV_PI_RECV_BUFFER_SIZE     100
 #define REV_PI_BC_ADDR		    0xff
@@ -45,17 +46,11 @@ static const struct serdev_device_ops pibridge_serdev_ops = {
 	.write_wakeup	= serdev_device_write_wakeup,
 };
 
-static int pibridge_parse_dt(struct serdev_device *serdev)
+static int pibridge_set_serial(struct serdev_device *serdev)
 {
-	struct device_node *node = serdev->dev.of_node;
-	u32 speed = 115200;
-
-	of_property_read_u32(node, "current-speed", &speed);
-	serdev_device_set_baudrate(serdev, speed);
-
+	serdev_device_set_baudrate(serdev, PIBRIDGE_BAUDRATE);
 	/* RTS is used to drive Transmit Enable pin, hence no flow control */
 	serdev_device_set_flow_control(serdev, false);
-
 	return serdev_device_set_parity(serdev, SERDEV_PARITY_EVEN);
 }
 
@@ -87,7 +82,7 @@ static int pibridge_probe(struct serdev_device *serdev)
 	if (ret)
 		goto err_kfifo_free;
 
-	ret = pibridge_parse_dt(serdev);
+	ret = pibridge_set_serial(serdev);
 	if (ret)
 		goto err_serdev_close;
 
