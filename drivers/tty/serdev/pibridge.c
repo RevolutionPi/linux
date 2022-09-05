@@ -12,6 +12,10 @@
 #define PIBRIDGE_RECV_BUFFER_SIZE	100
 #define PIBRIDGE_BC_ADDR		0xff
 
+#define PIBRIDGE_RESP_CMD		0x3fff
+#define PIBRIDGE_RESP_OK		0x4000
+#define PIBRIDGE_RESP_ERR		0x8000
+
 struct pibridge {
 	struct serdev_device *serdev;
 
@@ -20,7 +24,32 @@ struct pibridge {
 	wait_queue_head_t read_queue;
 };
 
+struct pibridge_pkthdr_gate {
+	u8	dst;
+	u8	src;
+	u16	cmd;
+	u16	seq;
+	u8	len;
+} __attribute__((packed));
+
+struct pibridge_pkthdr_io {
+	u8 addr	:6;
+	u8 type	:1;	/* 0 for unicast, 1 for broadcast */
+	u8 rsp	:1;	/*always be 0 for sending, might be 1 for receiving*/
+	u8 len	:5;
+	u8 cmd	:3;	/* 0 for broadcast*/
+} __attribute__((packed));
+
 static struct pibridge *pibridge_s; /* unique instance of the pibridge */
+
+static u8 pibridge_crc8(u8 base, u8 *data, u16 len)
+{
+	u8 ret = base;
+
+	while (len--)
+		ret = ret ^ data[len];
+	return ret;
+}
 
 static int pibridge_receive_buf(struct serdev_device *serdev,
 				const unsigned char *buf, size_t count)
@@ -54,6 +83,25 @@ static int pibridge_set_serial(struct serdev_device *serdev)
 	return serdev_device_set_parity(serdev, SERDEV_PARITY_EVEN);
 }
 
+static int pibridge_discard_timeout(u16 len, u16 timeout)
+{
+	struct pibridge *pi = pibridge_s;
+	int ret;
+
+	wait_event_timeout(pi->read_queue,
+			   kfifo_len(&pi->read_fifo) >= len,
+			   msecs_to_jiffies(timeout));
+
+	mutex_lock(&pi->lock);
+	if (kfifo_len(&pi->read_fifo) >= len)
+		ret = 0;
+	else
+		ret = -1;
+	kfifo_reset(&pi->read_fifo);;
+	mutex_unlock(&pi->lock);
+
+	return ret;
+}
 
 static int pibridge_probe(struct serdev_device *serdev)
 {
@@ -74,7 +122,8 @@ static int pibridge_probe(struct serdev_device *serdev)
 	mutex_init(&pi->lock);
 	init_waitqueue_head(&pi->read_queue);
 
-	ret = kfifo_alloc(&pi->read_fifo, PIBRIDGE_RECV_BUFFER_SIZE, GFP_KERNEL);
+	ret = kfifo_alloc(&pi->read_fifo, PIBRIDGE_RECV_BUFFER_SIZE,
+			  GFP_KERNEL);
 	if (ret)
 		return ret;
 
@@ -102,44 +151,6 @@ static void pibridge_remove(struct serdev_device *serdev)
 	serdev_device_close(serdev);
 	kfifo_free(&pi->read_fifo);
 };
-
-static int pibridge_discard_timeout(u16 len, u16 timeout)
-{
-	struct pibridge *pi = pibridge_s;
-	int ret;
-
-	wait_event_timeout(pi->read_queue,
-			   kfifo_len(&pi->read_fifo) >= len,
-			   msecs_to_jiffies(timeout));
-
-	mutex_lock(&pi->lock);
-	if (kfifo_len(&pi->read_fifo) >= len)
-		ret = 0;
-	else
-		ret = -1;
-	kfifo_reset(&pi->read_fifo);;
-	mutex_unlock(&pi->lock);
-
-	return ret;
-}
-
-#ifdef CONFIG_OF
-static const struct of_device_id pibridge_of_match[] = {
-	{ .compatible = "kunbus,pi-bridge" },
-	{},
-};
-MODULE_DEVICE_TABLE(of, pibridge_of_match);
-#endif
-
-static struct serdev_device_driver pibridge_driver = {
-	.driver	= {
-		.name		= "pi-bridge",
-		.of_match_table	= of_match_ptr(pibridge_of_match),
-	},
-	.probe	= pibridge_probe,
-	.remove	= pibridge_remove,
-};
-module_serdev_device_driver(pibridge_driver);
 
 /*****************/
 
@@ -191,23 +202,6 @@ int pibridge_recv(u8 *buf, u16 len)
 }
 EXPORT_SYMBOL(pibridge_recv);
 
-struct pibridge_pkthdr_gate {
-	u8	dst;
-	u8	src;
-	u16	cmd;
-	u16	seq;
-	u8	len;
-} __attribute__((packed));
-
-static u8 pibridge_crc8(u8 base, u8 *data, u16 len)
-{
-	u8 ret = base;
-
-	while (len--)
-		ret = ret ^ data[len];
-	return ret;
-}
-
 int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
 {
 	struct pibridge_pkthdr_gate pkthdr;
@@ -246,10 +240,6 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
 	return 0;
 }
 EXPORT_SYMBOL(pibridge_req_send_gate);
-
-#define PIBRIDGE_RESP_CMD	0x3fff
-#define PIBRIDGE_RESP_OK	0x4000
-#define PIBRIDGE_RESP_ERR	0x8000
 
 int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 		u8 *rcv_buf, u16 rcv_len, u16 tmt)
@@ -352,14 +342,6 @@ int pibridge_req_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 }
 EXPORT_SYMBOL(pibridge_req_gate);
 
-struct pibridge_pkthdr_io {
-	u8 addr	:6;
-	u8 type	:1;	/* 0 for unicast, 1 for broadcast */
-	u8 rsp	:1;	/*always be 0 for sending, might be 1 for receiving*/
-	u8 len	:5;
-	u8 cmd	:3;	/* 0 for broadcast*/
-} __attribute__((packed));
-
 int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 {
 	struct pibridge_pkthdr_io pkthdr;
@@ -397,7 +379,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 }
 EXPORT_SYMBOL(pibridge_req_send_io);
 
-int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf, u16 rcv_len)
+int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
+		    u16 rcv_len)
 {
 	struct pibridge_pkthdr_io pkthdr;
 	u8 crc_rcv;
@@ -449,5 +432,23 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf, u16 
 	return 0;
 }
 EXPORT_SYMBOL(pibridge_req_io);
+
+#ifdef CONFIG_OF
+static const struct of_device_id pibridge_of_match[] = {
+	{ .compatible = "kunbus,pi-bridge" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, pibridge_of_match);
+#endif
+
+static struct serdev_device_driver pibridge_driver = {
+	.driver	= {
+		.name		= "pi-bridge",
+		.of_match_table	= of_match_ptr(pibridge_of_match),
+	},
+	.probe	= pibridge_probe,
+	.remove	= pibridge_remove,
+};
+module_serdev_device_driver(pibridge_driver);
 
 MODULE_LICENSE("GPL");
