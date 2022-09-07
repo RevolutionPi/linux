@@ -1,0 +1,416 @@
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Flat S (2022)
+ */
+
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/{
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-flat-s-2022",
+				     "kunbus,revpi-flat", "brcm,bcm2711";
+
+			aout_vref: fixedregulator_2v5x4 {
+				compatible = "regulator-fixed";
+				regulator-name = "2v5_x4_amplified";
+				regulator-min-microvolt = <10000000>;
+				regulator-max-microvolt = <10000000>;
+				regulator-always-on;
+			};
+
+			ain_vref: fixedregulator_2v5x5 {
+				compatible = "regulator-fixed";
+				regulator-name = "2v5_x5_amplified";
+				regulator-min-microvolt = <12500000>;
+				regulator-max-microvolt = <12500000>;
+				regulator-always-on;
+			};
+
+			wlan_pwrseq: wlan_pwrseq {
+				compatible = "mmc-pwrseq-simple";
+				reset-gpios = <&expander 12 GPIO_ACTIVE_LOW>;
+			};
+
+			leds {
+				compatible = "gpio-leds";
+				pinctrl-names = "default";
+				pinctrl-0 = <&pwr_led_pins>;
+
+				power_red {
+					gpios = <&gpio 24 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "power_red";
+				};
+				a1_green {
+					gpios = <&expander 0 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_green";
+				};
+				a1_red {
+					gpios = <&expander 1 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_red";
+				};
+				a2_green {
+					gpios = <&expander 2 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_green";
+				};
+				a2_red {
+					gpios = <&expander 3 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_red";
+				};
+				a3_green {
+					gpios = <&expander 4 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_green";
+				};
+				a3_red {
+					gpios = <&expander 5 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_red";
+				};
+				a4_green {
+					gpios = <&expander 6 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_green";
+				};
+				a4_red {
+					gpios = <&expander 7 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_red";
+				};
+				a5_green {
+					gpios = <&expander 8 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_green";
+				};
+				a5_red {
+					gpios = <&expander 9 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_red";
+				};
+				led-act {
+					status = "disabled";
+				};
+			};
+
+			gpio-keys {
+				compatible = "gpio-keys";
+				pinctrl-names = "default";
+				pinctrl-0 = <&button_pins>;
+				user-event {
+					label = "User event key";
+					gpios = <&gpio 23 GPIO_ACTIVE_LOW>;
+					linux,code = <KEY_UNKNOWN>;
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&relais_pins>;
+
+			pwr_led_pins: pwr_led_pins {
+				brcm,pins = <24>;
+				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+			};
+			spi_5_pins: spi_5_pins {
+				brcm,pins = <13 14 15>;
+				brcm,function = <BCM2835_FSEL_ALT3>;
+			};
+			spi_5_cs_pins: spi_5_cs_pins {
+				/* tpm ksz*/
+				brcm,pins     = <17 18>;
+				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			spi_6_pins: spi_6_pins {
+				brcm,pins = <19 20 21>;
+				brcm,function = <BCM2835_FSEL_ALT3>;
+			};
+			spi_6_cs_pins: spi_6_cs_pins {
+				/* aout ain mbus */
+				brcm,pins     = <6 10 27>;
+				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			tpm_pins: tpm_pins {
+				/* irq */
+				brcm,pins     = <22>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				// TODO: ask HW about external pull up
+				brcm,pull     = <BCM2835_PUD_UP>;
+			};
+			mbus_pins: mbus_pins {
+				/* irq */
+				brcm,pins     = <45>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			button_pins: button_pins {
+				brcm,pins     = <23>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			relais_pins: relais_pins {
+				brcm,pins     = <28>;
+				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			rs485_0_pins: rs485_0_pins {
+				/* tx rx rts */
+				brcm,pins     = <4 5 7>;
+				brcm,function = <BCM2835_FSEL_ALT4>;
+				// TODO: ask HW about external pulls
+				brcm,pull     = <BCM2835_PUD_DOWN
+						 BCM2835_PUD_OFF
+						 BCM2835_PUD_UP>;
+			};
+			rs485_1_pins: rs485_1_pins {
+				/* tx rx rts */
+				brcm,pins     = <8 9 11>;
+				brcm,function = <BCM2835_FSEL_ALT4>;
+				// TODO: ask HW about external pulls
+				brcm,pull     = <BCM2835_PUD_DOWN
+						 BCM2835_PUD_OFF
+						 BCM2835_PUD_UP>;
+			};
+			i2c_1_pins: i2c_1_pins {
+				brcm,pins = <2 3>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+			sdhci_pins: sdhci_pins {
+				brcm,pins = <34 35 36 37 38 39>;
+				brcm,function = <BCM2835_FSEL_ALT3>;
+				brcm,pull = <BCM2835_PUD_OFF>;
+			};
+			bluetooth_pins: bluetooth_pins {
+				brcm,pins = <30 31 32 33>;
+				brcm,function = <BCM2835_FSEL_ALT3>;
+				brcm,pull = <BCM2835_PUD_OFF>;
+			};
+
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c_1_pins>;
+			clock-frequency = <400000>;
+			status = "okay";
+
+			expander: gpio@20 {
+				compatible = "ti,tca6416";
+				reg = <0x20>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				status = "okay";
+			};
+
+			rtc@51 {
+				compatible = "nxp,pcf2129";
+				reg = <0x51>;
+				reset-source;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&spi5>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			cs-gpios = <&gpio 17 GPIO_ACTIVE_LOW>,
+				   <&gpio 18 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi_5_pins &spi_5_cs_pins>;
+			status = "okay";
+
+			tpm: tpm@0 {
+				compatible = "infineon,slb9670";
+				pinctrl-names = "default";
+				pinctrl-0 = <&tpm_pins>;
+				reg = <0>;
+				spi-max-frequency = <1000000>;
+				interrupt-parent = <&gpio>;
+				#interrupt-cells = <2>;
+				interrupts = <22 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+			};
+
+			ksz8795: switch@1 {
+				// TODO: use DSA?
+				compatible = "microchip,ksz8795";
+				// NOTE: reduce this if device is not working properly
+				spi-max-frequency = <20000000>;
+				reg = <1>;
+				interrupt-parent = <&gpio>;
+				#interrupt-cells = <2>;
+				interrupts = <44 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi6>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			cs-gpios = <&gpio 6 GPIO_ACTIVE_LOW>,
+				   <&gpio 10 GPIO_ACTIVE_LOW>,
+				   <&gpio 27 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi_6_pins &spi_6_cs_pins>;
+			status = "okay";
+
+			aout: dac@0 {
+				compatible = "ti,dac7512";
+				reg = <0>;
+				spi-max-frequency = <20000000>;
+				spi-cpol;
+				vcc-supply = <&aout_vref>;
+				status = "okay";
+			};
+
+			ain: adc@1 {
+				compatible = "microchip,mcp3550-50";
+				reg = <1>;
+				spi-max-frequency = <5000000>;
+				vref-supply = <&ain_vref>;
+				status = "okay";
+			};
+
+			mbus: rf@2 {
+				compatible = "spidev", "ti,cc1101";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mbus_pins>;
+				reg = <2>;
+				spi-max-frequency = <5000000>;
+				interrupt-parent = <&gpio>;
+				#interrupt-cells = <2>;
+				interrupts = <45 IRQ_TYPE_LEVEL_HIGH>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&xhci>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		xhci_usb: __overlay__ {
+			status = "okay";
+
+			hub@1 {
+				/* SMSC LAN9514 */
+				compatible = "usb424,9514";
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				eth0: ethernet@1 {
+					compatible = "usb424,ec00";
+					reg = <1>;
+				};
+
+				eth1: ethernet@4 {
+					/* SMSC LAN9500, attached to KSZ8795 */
+					compatible = "usb424,9500";
+					reg = <4>;
+				};
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&sdhci>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdhci_pins>;
+			bus-width = <4>;
+			non-removable;
+			max-frequency = <28000000>;
+			mmc-pwrseq = <&wlan_pwrseq>;
+			status = "okay";
+
+			sdxxx-wlan {
+				cfg80211_wext = <0xf>;
+				cal_data_cfg = "none";
+				max_vir_bss=<1>;
+				ps_mode=<1>;
+				auto_ds=<1>;
+				host_mlme=<1>;
+				fw_name="nxp/sdiouartiw416_combo_v0.bin";
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&uart0>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&bluetooth_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@8 {
+		target = <&uart3>;
+		__overlay__ {
+			linux,rs485-enabled-at-boot-time;
+			rs485-rts-active-low;
+			pinctrl-names = "default";
+			pinctrl-0 = <&rs485_0_pins>;
+			rs485-term-gpios = <&expander 14 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
+
+	fragment@9 {
+		target = <&uart4>;
+		__overlay__ {
+			linux,rs485-enabled-at-boot-time;
+			rs485-rts-active-low;
+			pinctrl-names = "default";
+			pinctrl-0 = <&rs485_1_pins>;
+			rs485-term-gpios = <&expander 15 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
+
+	fragment@10 {
+		target = <&hdmi0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@11 {
+		target = <&ddc0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@12 {
+		target-path = "/chosen";
+		chosen_overlay: __overlay__ {
+		};
+	};
+
+	__overrides__ {
+		bootargs = <&chosen_overlay>,"bootargs";
+	};
+};
