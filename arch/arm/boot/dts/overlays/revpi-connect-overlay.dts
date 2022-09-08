@@ -284,6 +284,7 @@
 			pinctrl-0 = <&rs485_pins>;
 			linux,rs485-enabled-at-boot-time;
 			status = "okay";
+
 			pi_bridge {
 				compatible = "kunbus,pi-bridge";
 			};
