@@ -18,7 +18,6 @@
 
 struct pibridge {
 	struct serdev_device *serdev;
-
 	struct mutex lock;
 	struct kfifo read_fifo;
 	wait_queue_head_t read_queue;
@@ -35,7 +34,7 @@ struct pibridge_pkthdr_gate {
 struct pibridge_pkthdr_io {
 	u8 addr	:6;
 	u8 type	:1;	/* 0 for unicast, 1 for broadcast */
-	u8 rsp	:1;	/*always be 0 for sending, might be 1 for receiving*/
+	u8 rsp	:1;	/* 0 for request, 1 for response */
 	u8 len	:5;
 	u8 cmd	:3;	/* 0 for broadcast*/
 } __attribute__((packed));
@@ -97,7 +96,7 @@ static int pibridge_discard_timeout(u16 len, u16 timeout)
 		ret = 0;
 	else
 		ret = -1;
-	kfifo_reset(&pi->read_fifo);;
+	kfifo_reset(&pi->read_fifo);
 	mutex_unlock(&pi->lock);
 
 	return ret;
@@ -424,7 +423,7 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
 			"check crc error in io-req\n");
 		return -EBADMSG;
 	}
-	/*received header check is not performed in io mode*/
+	/* received header check is not performed in io mode */
 	if (rcv_len != pkthdr.len)
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"received len is not as expected in io-req(received:%d, expected:%d)\n",
