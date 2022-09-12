@@ -151,7 +151,7 @@
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
 			relais_pins: relais_pins {
-				brcm,pins     = <19>;
+				brcm,pins     = <28>;
 				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
