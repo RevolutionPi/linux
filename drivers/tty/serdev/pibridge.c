@@ -382,6 +382,8 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
 		    u16 rcv_len)
 {
 	struct pibridge_pkthdr_io pkthdr;
+	u16 to_receive;
+	u16 to_discard;
 	u8 crc_rcv;
 	u8 crc;
 
@@ -400,34 +402,47 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
 			"receive head error in io-req\n");
 		return -EIO;
 	}
+	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
 
-	if (rcv_len != 0) {
-		if (pibridge_recv(rcv_buf, rcv_len) != rcv_len) {
+	to_receive = min((u16) pkthdr.len, rcv_len);
+	to_discard = pkthdr.len - to_receive;
+
+	if (to_receive) {
+		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"receive data error in io-req\n");
-			return -EBADMSG;
+				"receive data error in io-req(len:%d)\n",
+				to_receive);
+			return -EIO;
 		}
 	}
 
+	if (to_discard) {
+		/*
+		 * The provided buffer was too small. Discard the rest of the
+		 * received data as well as the following CRC checksum byte.
+		 */
+		if (pibridge_discard_timeout(to_discard + 1,
+					     PIBRIDGE_IO_TIMEOUT))
+			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+				"failed to discard %u bytes within timeout\n",
+				to_discard);
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"received packet truncated (%u bytes missing)\n",
+			to_discard);
+		return -EBADMSG;
+	}
+	/* We got the whole data, now get the CRC */
 	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"receive crc error in io-req\n");
 		return -EIO;
 	}
+	crc = pibridge_crc8(crc, rcv_buf, pkthdr.len);
 
-	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
-	crc = pibridge_crc8(crc, rcv_buf, rcv_len);
-
-	if (crc != crc_rcv) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"check crc error in io-req\n");
+	if (crc != crc_rcv)
 		return -EBADMSG;
-	}
-	/* received header check is not performed in io mode */
-	if (rcv_len != pkthdr.len)
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"received len is not as expected in io-req(received:%d, expected:%d)\n",
-			pkthdr.len, rcv_len);
+	/* Done (received header check is not performed in io mode) */
+
 	return 0;
 }
 EXPORT_SYMBOL(pibridge_req_io);
