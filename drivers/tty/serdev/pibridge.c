@@ -440,10 +440,24 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
 		return -EIO;
 	}
 	crc = pibridge_crc8(crc, rcv_buf, pkthdr.len);
-
-	if (crc != crc_rcv)
+	if (crc != crc_rcv) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
+			crc_rcv, crc);
 		return -EBADMSG;
-	/* Done (received header check is not performed in io mode) */
+	}
+
+	if (pkthdr.addr != addr) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"unexpected response addr 0x%02x\n", pkthdr.addr);
+		return -EBADMSG;
+	}
+
+	if (!pkthdr.rsp) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"response flag not set in received packet\n");
+		return -EBADMSG;
+	}
 
 	return 0;
 }
