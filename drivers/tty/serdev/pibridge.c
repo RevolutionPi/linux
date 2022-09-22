@@ -206,10 +206,10 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
 	struct pibridge_pkthdr_gate pkthdr;
 	u8 crc;
 
+	memset(&pkthdr, 0, sizeof(pkthdr));
+
 	pkthdr.dst = dst;
-	pkthdr.src = 0;
 	pkthdr.cmd = cmd;
-	pkthdr.seq = 0;
 	pkthdr.len = snd_len;
 
 	if (pibridge_send((u8 *) &pkthdr, sizeof(pkthdr)) < 0) {
@@ -345,6 +345,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 {
 	struct pibridge_pkthdr_io pkthdr;
 	u8 crc;
+
+	memset(&pkthdr, 0, sizeof(pkthdr));
 
 	pkthdr.addr	= addr;
 	pkthdr.type	= (addr == 0x3f) ? 1 : 0; /* 0 for unicast, 1 for broadcast */
