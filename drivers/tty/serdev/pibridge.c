@@ -416,6 +416,7 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
 				to_receive);
 			return -EIO;
 		}
+		crc = pibridge_crc8(crc, rcv_buf, to_receive);
 	}
 
 	if (to_discard) {
@@ -439,7 +440,7 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
 			"receive crc error in io-req\n");
 		return -EIO;
 	}
-	crc = pibridge_crc8(crc, rcv_buf, pkthdr.len);
+
 	if (crc != crc_rcv) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
