@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright 2022 KUNBUS GmbH
+ */
+
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_pins>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clock-frequency = <400000>;
+			status = "okay";
+
+			eeprom: eeprom@50 {
+				compatible = "atmel,24c256";
+				reg = <0x50>;
+				pagesize = <64>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/aliases";
+		__overlay__ {
+			i2c0 = "/soc/i2c@7e205000";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/__symbols__";
+		__overlay__ {
+			i2c0 = "/soc/i2c@7e205000";
+		};
+	};
+};
