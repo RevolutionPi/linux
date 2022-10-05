@@ -4,14 +4,28 @@ on:
     types:
       - labeled
 jobs:
-  kernelbakery_snapshot:
-    name: snapshot
-    if: ${{ github.event_name == 'pull_request' && github.event.label.name == 'snapshot-packages'}}
+  kernelbakery_snapshot_arm:
+    name: Snapshot Packages ARM
+    if: |
+      github.event_name == 'pull_request' && 
+      (github.event.label.name == 'snapshot-packages' || github.event.label.name == 'snapshot-packages-arm')
     uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
     with:
       kernelbakery_branch: master
       picontrol_branch: master
       build_commit: ${{ github.event.pull_request.head.sha }}
+      arch: arm
+  kernelbakery_snapshot_arm64:
+    name: Snapshot Packages ARM64
+    if: |
+      github.event_name == 'pull_request' && 
+      (github.event.label.name == 'snapshot-packages' || github.event.label.name == 'snapshot-packages-arm64')
+    uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
+    with:
+      kernelbakery_branch: master
+      picontrol_branch: master
+      build_commit: ${{ github.event.pull_request.head.sha }}
+      arch: arm64
   # link_artifacts:
   #   name: link artifacts in PR
   #   if: ${{ (github.event_name == 'pull_request' && github.event.label.name == 'snapshot-packages') }}
