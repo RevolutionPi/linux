@@ -1,0 +1,298 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-connect4", "brcm,bcm2711";
+
+			pibridge {
+				pinctrl-names = "default";
+				compatible = "kunbus,pibridge";
+				pinctrl-0 = <&digital_io_pins>;
+
+				/* digital IN, digital OUT */
+				connect-gpios = <&gpio 6 GPIO_ACTIVE_HIGH>,
+						<&gpio 16 GPIO_ACTIVE_HIGH>;
+
+				left-sniff-gpios = <&expander_core 8 GPIO_ACTIVE_HIGH>,
+						   <&expander_core 9 GPIO_ACTIVE_HIGH>;
+				right-sniff-gpios = <&expander_core 11 GPIO_ACTIVE_HIGH>,
+						   <&expander_core 12 GPIO_ACTIVE_HIGH>;
+			};
+
+			leds {
+				compatible = "gpio-leds";
+				power_red {
+					label = "power:1:fault";
+					gpios = <&expander_core 0 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "power_red";
+				};
+				a1_red {
+					label = "a1:red:status";
+					gpios = <&expander_core 1 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_red";
+				};
+				a1_green {
+					label = "a1:green:status";
+					gpios = <&expander_core 2 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_green";
+				};
+				a1_blue {
+					label = "a1:blue:status";
+					gpios = <&expander_core 3 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_blue";
+				};
+				a2_red {
+					label = "a2:red:status";
+					gpios = <&expander_core 4 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_red";
+				};
+				a2_green {
+					label = "a2:green:status";
+					gpios = <&expander_core 5 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_green";
+				};
+				a2_blue {
+					label = "a2:blue:status";
+					gpios = <&expander_core 6 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_blue";
+				};
+				a3_red {
+					label = "a3:red:status";
+					gpios = <&expander_power 0 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_red";
+				};
+				a3_green {
+					label = "a3:green:status";
+					gpios = <&expander_power 1 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_green";
+				};
+				a3_blue {
+					label = "a3:blue:status";
+					gpios = <&expander_power 2 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_blue";
+				};
+				a4_red {
+					label = "a4:red:status";
+					gpios = <&expander_power 8 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_red";
+				};
+				a4_green {
+					label = "a4:green:status";
+					gpios = <&expander_power 9 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_green";
+				};
+				a4_blue {
+					label = "a4:blue:status";
+					gpios = <&expander_power 10 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_blue";
+				};
+				a5_red {
+					label = "a5:red:status";
+					gpios = <&expander_power 11 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_red";
+				};
+				a5_green {
+					label = "a5:green:status";
+					gpios = <&expander_power 12 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_green";
+				};
+				a5_blue {
+					label = "a5:blue:status";
+					gpios = <&expander_power 13 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_blue";
+				};
+			};
+		};
+	};
+
+	/* PINMUX */
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			pb_uart_pins: pb_uart_pins {
+				/* TX RX TX_EN */
+				brcm,pins     = <4 5 7>;
+				brcm,function = <BCM2835_FSEL_ALT4>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			digital_io_pins: digital_io_pins {
+				/* digital IN digital OUT */
+				brcm,pins     = <6 16>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN
+				                 BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF
+				                 BCM2835_PUD_OFF>;
+			};
+			exp_core_pins: exp_core_pins {
+				/* IRQ */
+				brcm,pins     = <8>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			exp_power_pins: exp_power_pins {
+				/* IRQ */
+				brcm,pins     = <9>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			rs485_pins: rs485_pins {
+				/* TX RX TX_EN */
+				brcm,pins     = <12 13 15>;
+				brcm,function = <BCM2835_FSEL_ALT4
+				                 BCM2835_FSEL_ALT4
+				                 BCM2835_FSEL_ALT4>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			spi1_cs_pins: spi1_cs_pins {
+				/* tpm (SPI1_CE0_N) */
+				brcm,pins     = <18>;
+				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			spi1_pins: spi1_pins {
+				/* MISO MOSI SCLK */
+				brcm,pins     = <19 20 21>;
+				brcm,function = <BCM2835_FSEL_ALT4>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			tpm_pins: tpm_pins {
+				/* IRQ */
+				brcm,pins     = <10>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1_pins>;
+		__overlay__ {
+			/* SDA SCL */
+			brcm,pins     = <2 3>;
+			brcm,function = <BCM2835_FSEL_ALT0>;
+			brcm,pull     = <BCM2835_PUD_OFF>;
+		};
+	};
+
+	/* I2C1 */
+	fragment@3 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_pins>;
+			clock-frequency = <400000>;
+			status = "okay";
+
+			expander_power: gpio@21 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcal6416";
+				pinctrl-names = "default";
+				pinctrl-0 = <&exp_power_pins>;
+				reg = <0x21>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				status = "okay";
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
+			};
+
+			expander_core: gpio@22 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcal6524";
+				pinctrl-names = "default";
+				pinctrl-0 = <&exp_core_pins>;
+				reg = <0x22>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				status = "okay";
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <8 IRQ_TYPE_LEVEL_LOW>;
+			};
+
+			rtc@51 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcf2129";
+				reg = <0x51>;
+				status = "okay";
+				reset-source;
+			};
+
+			/* For system management of PCIe device, not used for now*/
+			pcie@38 {
+				reg = <0x38>;
+				status = "disabled";
+			};
+		};
+	};
+
+	/* SPI1 */
+	fragment@4 {
+		target = <&spi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_pins>, <&spi1_cs_pins>;
+			cs-gpios = <&gpio 18 GPIO_ACTIVE_LOW>;
+			status = "okay";
+
+			tpm: tpm@0 {
+				compatible = "infineon,slb9670";
+				pinctrl-names = "default";
+				pinctrl-0 = <&tpm_pins>;
+				reg = <0>;
+				spi-max-frequency = <1000000>;
+				interrupt-parent = <&gpio>;
+				#interrupt-cells = <2>;
+				interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+			};
+		};
+	};
+
+	/* UART5 (RS485)*/
+	fragment@5 {
+		target = <&uart5>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rs485_pins>;
+			status = "okay";
+			linux,rs485-enabled-at-boot-time;
+			rs485-term-gpios = <&expander_power 4 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	/* UART3 (PB_SERIAL) */
+	fragment@6 {
+		target = <&uart3>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pb_uart_pins>;
+			status = "okay";
+			linux,rs485-enabled-at-boot-time;
+		};
+	};
+
+	/* PCIe0 */
+	fragment@7 {
+		target = <&pcie0>;
+		__overlay__ {
+			/* No configuration till now*/
+		};
+	};
+};
