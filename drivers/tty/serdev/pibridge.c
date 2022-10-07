@@ -153,7 +153,7 @@ static void pibridge_remove(struct serdev_device *serdev)
 
 /*****************/
 
-int pibridge_send(u8 *buf, u16 len)
+int pibridge_send(u8 *buf, u8 len)
 {
 	struct pibridge *pi = pibridge_s;
 	struct serdev_device *serdev = pi->serdev;
@@ -174,7 +174,7 @@ void pibridge_clear_fifo(void)
 }
 EXPORT_SYMBOL(pibridge_clear_fifo);
 
-int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
+int pibridge_recv_timeout(u8 *buf, u8 len, u16 timeout)
 {
 	struct pibridge *pi = pibridge_s;
 	int ret;
@@ -194,14 +194,14 @@ int pibridge_recv_timeout(u8 *buf, u16 len, u16 timeout)
 }
 EXPORT_SYMBOL(pibridge_recv_timeout);
 
-int pibridge_recv(u8 *buf, u16 len)
+int pibridge_recv(u8 *buf, u8 len)
 {
 	/* using default timeout PIBRIDGE_IO_TIMEOUT */
 	return pibridge_recv_timeout(buf, len, PIBRIDGE_IO_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_recv);
 
-int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
+int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len)
 {
 	struct pibridge_pkthdr_gate pkthdr;
 	u8 crc;
@@ -240,12 +240,12 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len)
 }
 EXPORT_SYMBOL(pibridge_req_send_gate);
 
-int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
-		u8 *rcv_buf, u16 rcv_len, u16 tmt)
+int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
+			  u8 *rcv_buf, u8 rcv_len, u16 tmt)
 {
 	struct pibridge_pkthdr_gate pkthdr;
-	u16 to_receive;
-	u16 to_discard;
+	u8 to_receive;
+	u8 to_discard;
 	u8 crc_rcv;
 	u8 crc;
 
@@ -272,7 +272,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 
 	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
 
-	to_receive = min((u16) pkthdr.len, rcv_len);
+	to_receive = min(pkthdr.len, rcv_len);
 	to_discard = pkthdr.len - to_receive;
 
 	if (to_receive) {
@@ -333,15 +333,15 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
 }
 EXPORT_SYMBOL(pibridge_req_gate_tmt);
 
-int pibridge_req_gate(u8 dst, u16 cmd, u8 *snd_buf, u16 snd_len,
-		u8 *rcv_buf, u16 rcv_len)
+int pibridge_req_gate(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
+		      u8 *rcv_buf, u8 rcv_len)
 {
 	return pibridge_req_gate_tmt(dst, cmd, snd_buf, snd_len, rcv_buf,
 				     rcv_len, PIBRIDGE_IO_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_req_gate);
 
-int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
+int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u8 snd_len)
 {
 	struct pibridge_pkthdr_io pkthdr;
 	u8 crc;
@@ -380,12 +380,12 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len)
 }
 EXPORT_SYMBOL(pibridge_req_send_io);
 
-int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
-		    u16 rcv_len)
+int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u8 snd_len, u8 *rcv_buf,
+		    u8 rcv_len)
 {
 	struct pibridge_pkthdr_io pkthdr;
-	u16 to_receive;
-	u16 to_discard;
+	u8 to_receive;
+	u8 to_discard;
 	u8 crc_rcv;
 	u8 crc;
 
@@ -406,7 +406,7 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u16 snd_len, u8 *rcv_buf,
 	}
 	crc = pibridge_crc8(0, (u8 *) &pkthdr, sizeof(pkthdr));
 
-	to_receive = min((u16) pkthdr.len, rcv_len);
+	to_receive = min((u8) pkthdr.len, rcv_len);
 	to_discard = pkthdr.len - to_receive;
 
 	if (to_receive) {
