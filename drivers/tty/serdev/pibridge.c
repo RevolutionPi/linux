@@ -282,11 +282,14 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 				to_receive);
 			return -EIO;
 		}
+		crc = pibridge_crc8(crc, rcv_buf, to_receive);
 	}
 
 	if (to_discard) {
-		/* The provided buffer was too small. Discard the rest of the
-		   received data as well as the following CRC checksum byte. */
+		/*
+		 * The provided buffer was too small. Discard the rest of the
+		 * received data as well as the following CRC checksum byte.
+		 */
 		if (pibridge_discard_timeout(to_discard + 1, tmt))
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
 				"failed to discard %u bytes within timeout\n",
@@ -295,16 +298,18 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
 		return -EBADMSG;
-	} else {
-		/* We got the whole data, now get the CRC */
-		if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"failed to receive CRC in gate-req\n");
-			return -EIO;
-		}
-		crc = pibridge_crc8(crc, rcv_buf, pkthdr.len);
+	}
+	/* We got the whole data, now get the CRC */
+	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"failed to receive CRC in gate-req\n");
+		return -EIO;
+	}
 
-		if (crc != crc_rcv)
+	if (crc != crc_rcv) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
+			crc_rcv, crc);
 			return -EBADMSG;
 	}
 
