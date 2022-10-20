@@ -60,7 +60,7 @@ static int pibridge_receive_buf(struct serdev_device *serdev,
 	ret = kfifo_in(&pi->read_fifo, buf, count);
 	mutex_unlock(&pi->lock);
 
-	wake_up_interruptible(&pi->read_queue);
+	wake_up(&pi->read_queue);
 
 	if (ret < count)
 		dev_warn_ratelimited(&serdev->dev,
