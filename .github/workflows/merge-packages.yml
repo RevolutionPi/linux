@@ -4,9 +4,19 @@ on:
     branches:
       - revpi-5.10
 jobs:
-  kernelbakery_snapshot:
-    name: snapshot
+  kernelbakery_snapshot_arm:
+    name: Snapshot Packages ARM
     uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
     with:
       kernelbakery_branch: master
       picontrol_branch: master
+      build_commit: ${{ github.event.pull_request.head.sha }}
+      arch: arm
+  kernelbakery_snapshot_arm64:
+    name: Snapshot Packages ARM64
+    uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
+    with:
+      kernelbakery_branch: master
+      picontrol_branch: master
+      build_commit: ${{ github.event.pull_request.head.sha }}
+      arch: arm64
