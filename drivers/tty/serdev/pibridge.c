@@ -334,6 +334,13 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 		return -EBADMSG;
 	}
 
+	if (pkthdr.len < rcv_len) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"received packet smaller than expected (size: %u, expected: %u)\n",
+			pkthdr.len, rcv_len);
+		return -EBADMSG;
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL(pibridge_req_gate_tmt);
@@ -462,6 +469,13 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u8 snd_len, u8 *rcv_buf,
 	if (!pkthdr.rsp) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"response flag not set in received packet\n");
+		return -EBADMSG;
+	}
+
+	if (pkthdr.len < rcv_len) {
+		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			"received packet smaller than expected (size: %u, expected: %u)\n",
+			pkthdr.len, rcv_len);
 		return -EBADMSG;
 	}
 
