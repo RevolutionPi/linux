@@ -220,7 +220,7 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len)
 	if (snd_len != 0) {
 		if (pibridge_send(snd_buf, snd_len) < 0) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"send data error in gate-send(len:%d)\n", snd_len);
+				"send data error in gate-send(len: %d)\n", snd_len);
 			return -EIO;
 		}
 
@@ -254,7 +254,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 
 	if (pibridge_req_send_gate(dst, cmd, snd_buf, snd_len)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send message error in gate-req(dst:%d, cmd:%d, len:%d)\n",
+			"send message error in gate-req(dst: %d, cmd: %d, len: %d)\n",
 			dst, cmd, snd_len);
 		return -EIO;
 	}
@@ -265,7 +265,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 	if (pibridge_recv_timeout((u8 *) &pkthdr, sizeof(pkthdr), tmt) !=
 	    sizeof(pkthdr)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"receive head error in gate-req(hdr_len:%zd, timeout:%d, data0:%c)\n",
+			"receive head error in gate-req(hdr_len: %zd, timeout: %d, data0: %c)\n",
 		       sizeof(pkthdr), tmt, snd_buf ? snd_buf[0] : 0);
 		return -EIO;
 	}
@@ -278,7 +278,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 	if (to_receive) {
 		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"receive data error in gate-req(len:%d)\n",
+				"receive data error in gate-req(len: %d)\n",
 				to_receive);
 			return -EIO;
 		}
@@ -315,21 +315,21 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 
 	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"bad responded CMD code in gate-req(cmd:%d)\n",
+			"bad responded CMD code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
 		return -EBADMSG;
 	}
 
 	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"bad responded OK code in gate-req(cmd:%d)\n",
+			"bad responded OK code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
 		return -EBADMSG;
 	}
 
 	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"bad responded ERR code in gate-req(cmd:%d)\n",
+			"bad responded ERR code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
 		return -EBADMSG;
 	}
@@ -367,14 +367,14 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u8 snd_len)
 
 	if (pibridge_send((u8 *) &pkthdr, sizeof(pkthdr)) < 0) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send head error in io-send(len:%zd)\n", sizeof(pkthdr));
+			"send head error in io-send(len: %zd)\n", sizeof(pkthdr));
 		return -EIO;
 	}
 
 	if (snd_len != 0) {
 		if (pibridge_send(snd_buf, snd_len) < 0) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"send data error in io-send(len:%d)\n",
+				"send data error in io-send(len: %d)\n",
 				snd_len);
 			return -EIO;
 		}
@@ -406,7 +406,7 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u8 snd_len, u8 *rcv_buf,
 
 	if (pibridge_req_send_io(addr, cmd, snd_buf, snd_len)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send message error in io-req(addr:%d, cmd:%d, len:%d)\n",
+			"send message error in io-req(addr: %d, cmd: %d, len: %d)\n",
 			addr, cmd, snd_len);
 		return -EIO;
 	}
@@ -424,7 +424,7 @@ int pibridge_req_io(u8 addr, u8 cmd, u8 *snd_buf, u8 snd_len, u8 *rcv_buf,
 	if (to_receive) {
 		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"receive data error in io-req(len:%d)\n",
+				"receive data error in io-req(len: %d)\n",
 				to_receive);
 			return -EIO;
 		}
