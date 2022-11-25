@@ -64,7 +64,7 @@ static int pibridge_receive_buf(struct serdev_device *serdev,
 
 	if (ret < count)
 		dev_warn_ratelimited(&serdev->dev,
-			"failed to fill receive fifo (received: %d, filled: %d)\n",
+			"failed to fill receive fifo (received: %zd, filled: %d)\n",
 			count, ret);
 	return ret;
 }
@@ -265,7 +265,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, u8 *snd_buf, u8 snd_len,
 	if (pibridge_recv_timeout((u8 *) &pkthdr, sizeof(pkthdr), tmt) !=
 	    sizeof(pkthdr)) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"receive head error in gate-req(hdr_len:%d, timeout:%d, data0:%c)\n",
+			"receive head error in gate-req(hdr_len:%zd, timeout:%d, data0:%c)\n",
 		       sizeof(pkthdr), tmt, snd_buf ? snd_buf[0] : 0);
 		return -EIO;
 	}
@@ -367,7 +367,7 @@ int pibridge_req_send_io(u8 addr, u8 cmd, u8 *snd_buf, u8 snd_len)
 
 	if (pibridge_send((u8 *) &pkthdr, sizeof(pkthdr)) < 0) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send head error in io-send(len:%d)\n", sizeof(pkthdr));
+			"send head error in io-send(len:%zd)\n", sizeof(pkthdr));
 		return -EIO;
 	}
 
