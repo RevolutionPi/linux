@@ -5,3 +5,5 @@ obj-$(CONFIG_SERIAL_DEV_BUS) += serdev.o
 
 obj-$(CONFIG_SERIAL_DEV_CTRL_TTYPORT) += serdev-ttyport.o
 obj-$(CONFIG_SERIAL_DEV_MUX_PIBRIDGE) += pibridge.o
+
+CFLAGS_pibridge.o = -I$(src)
