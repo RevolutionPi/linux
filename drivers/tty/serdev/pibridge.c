@@ -7,9 +7,10 @@
 #include <linux/pibridge_comm.h>
 #include <linux/wait.h>
 
+#include "pibridge.h"
+
 #define PIBRIDGE_BAUDRATE		115200
 #define PIBRIDGE_IO_TIMEOUT		10         // msec
-#define PIBRIDGE_RECV_BUFFER_SIZE	100
 #define PIBRIDGE_BC_ADDR		0xff
 
 #define PIBRIDGE_RESP_CMD		0x3fff
@@ -22,22 +23,6 @@ struct pibridge {
 	struct kfifo read_fifo;
 	wait_queue_head_t read_queue;
 };
-
-struct pibridge_pkthdr_gate {
-	u8	dst;
-	u8	src;
-	u16	cmd;
-	u16	seq;
-	u8	len;
-} __attribute__((packed));
-
-struct pibridge_pkthdr_io {
-	u8 addr	:6;
-	u8 type	:1;	/* 0 for unicast, 1 for broadcast */
-	u8 rsp	:1;	/* 0 for request, 1 for response */
-	u8 len	:5;
-	u8 cmd	:3;	/* 0 for broadcast*/
-} __attribute__((packed));
 
 static struct pibridge *pibridge_s; /* unique instance of the pibridge */
 
@@ -121,8 +106,7 @@ static int pibridge_probe(struct serdev_device *serdev)
 	mutex_init(&pi->lock);
 	init_waitqueue_head(&pi->read_queue);
 
-	ret = kfifo_alloc(&pi->read_fifo, PIBRIDGE_RECV_BUFFER_SIZE,
-			  GFP_KERNEL);
+	ret = kfifo_alloc(&pi->read_fifo, PIBRIDGE_RECV_FIFO_SIZE, GFP_KERNEL);
 	if (ret)
 		return ret;
 
