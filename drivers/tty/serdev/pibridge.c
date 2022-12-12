@@ -9,6 +9,9 @@
 
 #include "pibridge.h"
 
+#define CREATE_TRACE_POINTS
+#include "pibridge_trace.h"
+
 #define PIBRIDGE_BAUDRATE		115200
 #define PIBRIDGE_IO_TIMEOUT		10         // msec
 #define PIBRIDGE_BC_ADDR		0xff
@@ -45,6 +48,7 @@ static int pibridge_receive_buf(struct serdev_device *serdev,
 	ret = kfifo_in(&pi->read_fifo, buf, count);
 	mutex_unlock(&pi->lock);
 
+	trace_pibridge_wakeup_receive_buffer(buf, count);
 	wake_up(&pi->read_queue);
 
 	if (ret < count)
@@ -54,9 +58,15 @@ static int pibridge_receive_buf(struct serdev_device *serdev,
 	return ret;
 }
 
+static void pibridge_write_wakeup(struct serdev_device *serdev)
+{
+	trace_pibridge_wakeup_write(serdev);
+	serdev_device_write_wakeup(serdev);
+}
+
 static const struct serdev_device_ops pibridge_serdev_ops = {
 	.receive_buf	= pibridge_receive_buf,
-	.write_wakeup	= serdev_device_write_wakeup,
+	.write_wakeup	= pibridge_write_wakeup,
 };
 
 static int pibridge_set_serial(struct serdev_device *serdev)
@@ -70,19 +80,23 @@ static int pibridge_set_serial(struct serdev_device *serdev)
 static int pibridge_discard_timeout(u16 len, u16 timeout)
 {
 	struct pibridge *pi = pibridge_s;
-	int ret;
+	unsigned int discarded;
+	int ret = 0;
 
 	wait_event_timeout(pi->read_queue,
 			   kfifo_len(&pi->read_fifo) >= len,
 			   msecs_to_jiffies(timeout) + 1);
 
 	mutex_lock(&pi->lock);
-	if (kfifo_len(&pi->read_fifo) >= len)
-		ret = 0;
-	else
-		ret = -1;
+	discarded = kfifo_len(&pi->read_fifo);
+	trace_pibridge_discard_data(&pi->read_fifo);
 	kfifo_reset(&pi->read_fifo);
 	mutex_unlock(&pi->lock);
+
+	if (discarded < len) {
+		trace_pibridge_discard_timeout(discarded, len, timeout);
+		ret = -1;
+	}
 
 	return ret;
 }
@@ -143,8 +157,12 @@ int pibridge_send(void *buf, u8 len)
 	struct serdev_device *serdev = pi->serdev;
 	int ret;
 
+	trace_pibridge_send_begin(buf, len);
+
 	ret = serdev_device_write(serdev, buf, len, MAX_SCHEDULE_TIMEOUT);
 	serdev_device_wait_until_sent(serdev, 0);
+
+	trace_pibridge_send_end(ret);
 
 	return ret;
 }
@@ -161,18 +179,24 @@ EXPORT_SYMBOL(pibridge_clear_fifo);
 int pibridge_recv_timeout(void *buf, u8 len, u16 timeout)
 {
 	struct pibridge *pi = pibridge_s;
-	int ret;
+	unsigned int received;
+	int ret = len;
 
-	wait_event_timeout(pi->read_queue,
-			   kfifo_len(&pi->read_fifo) >= len,
+	trace_pibridge_receive_begin(len);
+
+	wait_event_timeout(pi->read_queue, kfifo_len(&pi->read_fifo) >= len,
 			   msecs_to_jiffies(timeout) + 1);
 
 	mutex_lock(&pi->lock);
-	if (kfifo_len(&pi->read_fifo) >= len)
-		ret = kfifo_out(&pi->read_fifo, buf, len);
-	else
-		ret = 0;
+	received = kfifo_out(&pi->read_fifo, buf, len);
 	mutex_unlock(&pi->lock);
+
+	trace_pibridge_receive_end(buf, received);
+
+	if (received != len) {
+		trace_pibridge_receive_timeout(received, len, timeout);
+		ret = 0;
+	}
 
 	return ret;
 }
@@ -196,12 +220,16 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 snd_len)
 	pkthdr.cmd = cmd;
 	pkthdr.len = snd_len;
 
+	trace_pibridge_send_gate_header(&pkthdr);
+
 	if (pibridge_send(&pkthdr, sizeof(pkthdr)) < 0) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"send head error in gate-send\n");
 		return -EIO;
 	}
 	if (snd_len != 0) {
+		trace_pibridge_send_gate_data(snd_buf, snd_len);
+
 		if (pibridge_send(snd_buf, snd_len) < 0) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
 				"send data error in gate-send(len: %d)\n", snd_len);
@@ -213,6 +241,8 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 snd_len)
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 	if (snd_len != 0)
 		crc = pibridge_crc8(crc, snd_buf, snd_len);
+
+	trace_pibridge_send_gate_crc(crc);
 
 	if (pibridge_send(&crc, sizeof(u8)) < 0) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
@@ -254,6 +284,8 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		return -EIO;
 	}
 
+	trace_pibridge_receive_gate_header(&pkthdr);
+
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 
 	to_receive = min(pkthdr.len, rcv_len);
@@ -266,6 +298,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 				to_receive);
 			return -EIO;
 		}
+		trace_pibridge_receive_gate_data(rcv_buf, to_receive);
 		crc = pibridge_crc8(crc, rcv_buf, to_receive);
 	}
 
@@ -289,6 +322,8 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"failed to receive CRC in gate-req\n");
 		return -EIO;
 	}
+
+	trace_pibridge_receive_gate_crc(crc_rcv, crc);
 
 	if (crc != crc_rcv) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
@@ -349,6 +384,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len)
 	pkthdr.cmd	= cmd;
 	pkthdr.len	= snd_len;
 
+	trace_pibridge_send_io_header(&pkthdr);
+
 	if (pibridge_send(&pkthdr, sizeof(pkthdr)) < 0) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"send head error in io-send(len: %zd)\n", sizeof(pkthdr));
@@ -356,6 +393,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len)
 	}
 
 	if (snd_len != 0) {
+		trace_pibridge_send_io_data(snd_buf, snd_len);
+
 		if (pibridge_send(snd_buf, snd_len) < 0) {
 			dev_warn_ratelimited(&pibridge_s->serdev->dev,
 				"send data error in io-send(len: %d)\n",
@@ -365,6 +404,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len)
 	}
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 	crc = pibridge_crc8(crc, snd_buf, snd_len);
+
+	trace_pibridge_send_io_crc(crc);
 
 	if (pibridge_send(&crc, sizeof(u8)) < 0) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
@@ -400,6 +441,9 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 			"receive head error in io-req\n");
 		return -EIO;
 	}
+
+	trace_pibridge_receive_io_header(&pkthdr);
+
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 
 	to_receive = min((u8) pkthdr.len, rcv_len);
@@ -412,6 +456,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 				to_receive);
 			return -EIO;
 		}
+		trace_pibridge_receive_io_data(rcv_buf, to_receive);
 		crc = pibridge_crc8(crc, rcv_buf, to_receive);
 	}
 
@@ -436,6 +481,8 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 			"receive crc error in io-req\n");
 		return -EIO;
 	}
+
+	trace_pibridge_receive_io_crc(crc_rcv, crc);
 
 	if (crc != crc_rcv) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
