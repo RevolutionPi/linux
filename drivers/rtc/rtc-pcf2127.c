@@ -39,6 +39,7 @@
 #define PCF2127_REG_CTRL1		0x00
 #define PCF2127_BIT_CTRL1_POR_OVRD		BIT(3)
 #define PCF2127_BIT_CTRL1_TSF1			BIT(4)
+#define PCF2127_BIT_CTRL1_STOP			BIT(5)
 /* Control register 2 */
 #define PCF2127_REG_CTRL2		0x01
 #define PCF2127_BIT_CTRL2_AIE			BIT(1)
@@ -70,6 +71,7 @@
 #define PCF2131_REG_SR_RESET		0x05
 #define PCF2131_SR_RESET_READ_PATTERN	0b00100100 /* Fixed pattern. */
 #define PCF2131_SR_RESET_RESET_CMD	0x2C /* SR is bit 3. */
+#define PCF2131_SR_RESET_CPR_CMD	0xA4 /* CPR is bit 7. */
 /* Time and date registers */
 #define PCF2127_REG_TIME_DATE_BASE	0x03
 #define PCF2131_REG_TIME_DATE_BASE	0x07 /* Register 0x06 is 100th seconds,
@@ -307,12 +309,46 @@ static int pcf2127_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	/* year */
 	buf[i++] = bin2bcd(tm->tm_year - 100);
 
-	/* write register's data */
+	/* Write access to time registers:
+	 * PCF2127/29: no special action required.
+	 * PCF2131:    requires setting the STOP bit. STOP bit needs to
+	 *             be cleared after time registers are updated.
+	 *             It is also recommended to set CPR bit, although
+	 *             write access will work without it.
+	 */
+	if (pcf2127->cfg->has_reset_reg) {
+		err = regmap_update_bits(pcf2127->regmap, PCF2127_REG_CTRL1,
+					 PCF2127_BIT_CTRL1_STOP,
+					 PCF2127_BIT_CTRL1_STOP);
+		if (err) {
+			dev_err(dev, "setting STOP bit failed\n");
+			return err;
+		}
+
+		err = regmap_write(pcf2127->regmap, pcf2127->cfg->reg_reset,
+				   PCF2131_SR_RESET_CPR_CMD);
+		if (err) {
+			dev_err(dev, "sending CPR cmd failed\n");
+			return err;
+		}
+	}
+
+	/* write time register's data */
 	err = regmap_bulk_write(pcf2127->regmap, pcf2127->cfg->regs_td_base, buf, i);
 	if (err) {
 		dev_err(dev,
 			"%s: err=%d", __func__, err);
 		return err;
+	}
+
+	if (pcf2127->cfg->has_reset_reg) {
+		/* Clear STOP bit (PCF2131 only) after write is completed. */
+		err = regmap_update_bits(pcf2127->regmap, PCF2127_REG_CTRL1,
+					 PCF2127_BIT_CTRL1_STOP, 0);
+		if (err) {
+			dev_err(dev, "clearing STOP bit failed\n");
+			return err;
+		}
 	}
 
 	return 0;
