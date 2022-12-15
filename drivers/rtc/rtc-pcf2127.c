@@ -157,9 +157,29 @@
 
 /* Watchdog timer value constants */
 #define PCF2127_WD_VAL_STOP		0
-#define PCF2127_WD_VAL_MIN		2
-#define PCF2127_WD_VAL_MAX		255
-#define PCF2127_WD_VAL_DEFAULT		60
+#define PCF2127_WD_VAL_DEFAULT		60 /* In seconds. */
+/* PCF2127/29 watchdog timer value constants */
+#define PCF2127_WD_CLOCK_HZ_X1000	1000 /* 1Hz */
+#define PCF2127_WD_MIN_HW_HEARTBEAT_MS	500
+/* PCF2131 watchdog timer value constants */
+#define PCF2131_WD_CLOCK_HZ_X1000	250  /* 1/4Hz */
+#define PCF2131_WD_MIN_HW_HEARTBEAT_MS	4000
+/*
+ * Compute watchdog period, t, in seconds, from the WATCHDG_TIM_VAL register
+ * value, n, and the clock frequency, f, in Hz.
+ *
+ * The PCF2127/29 datasheet gives t as:
+ *   t = n / f
+ * The PCF2131 datasheet gives t as:
+ *   t = (n - 1) / f
+ * For both variants, the watchdog is triggered when the WATCHDG_TIM_VAL reaches
+ * the value 1, and not zero. Consequently, the equation from the PCF2131
+ * datasheet seems to be the correct one for both variants.
+ */
+#define WD_PERIOD_S(_n_, _f1000_) ((1000 * ((_n_) - 1)) / (_f1000_))
+
+/* Compute value of WATCHDG_TIM_VAL to obtain period t, in seconds. */
+#define WD_COUNTER(_t_, _f1000_) ((((_t_) * (_f1000_)) / 1000) + 1)
 
 /* Mask for currently enabled interrupts */
 #define PCF2127_CTRL1_IRQ_MASK (PCF2127_BIT_CTRL1_TSF1)
@@ -202,6 +222,11 @@ struct pcf21xx_config {
 	u8 reg_wd_val; /* Watchdog value register. */
 	u8 reg_clkout; /* Clkout register. */
 	u8 reg_reset;  /* Reset register if available. */
+
+	/* Watchdog configuration. */
+	int wdd_clock_hz_x1000; /* Value in Hz multiplicated by 1000 */
+	int wdd_min_hw_heartbeat_ms;
+
 	unsigned int ts_count;
 	struct pcf21xx_ts_config ts[4];
 	struct attribute_group attribute_group;
@@ -496,10 +521,19 @@ static int pcf2127_watchdog_init(struct device *dev, struct pcf2127 *pcf2127)
 	pcf2127->wdd.parent = dev;
 	pcf2127->wdd.info = &pcf2127_wdt_info;
 	pcf2127->wdd.ops = &pcf2127_watchdog_ops;
-	pcf2127->wdd.min_timeout = PCF2127_WD_VAL_MIN;
-	pcf2127->wdd.max_timeout = PCF2127_WD_VAL_MAX;
-	pcf2127->wdd.timeout = PCF2127_WD_VAL_DEFAULT;
-	pcf2127->wdd.min_hw_heartbeat_ms = 500;
+
+	pcf2127->wdd.min_timeout =
+		WD_PERIOD_S(2, pcf2127->cfg->wdd_clock_hz_x1000);
+	pcf2127->wdd.max_timeout =
+		WD_PERIOD_S(255, pcf2127->cfg->wdd_clock_hz_x1000);
+	pcf2127->wdd.timeout = WD_COUNTER(PCF2127_WD_VAL_DEFAULT,
+					  pcf2127->cfg->wdd_clock_hz_x1000);
+
+	dev_dbg(dev, "%s min = %ds\n", __func__, pcf2127->wdd.min_timeout);
+	dev_dbg(dev, "%s max = %ds\n", __func__, pcf2127->wdd.max_timeout);
+	dev_dbg(dev, "%s def = %d\n", __func__, pcf2127->wdd.timeout);
+
+	pcf2127->wdd.min_hw_heartbeat_ms = pcf2127->cfg->wdd_min_hw_heartbeat_ms;
 	pcf2127->wdd.status = WATCHDOG_NOWAYOUT_INIT_STATUS;
 
 	watchdog_set_drvdata(&pcf2127->wdd, pcf2127);
@@ -926,6 +960,8 @@ static struct pcf21xx_config pcf21xx_cfg[] = {
 		.reg_wd_ctl = PCF2127_REG_WD_CTL,
 		.reg_wd_val = PCF2127_REG_WD_VAL,
 		.reg_clkout = PCF2127_REG_CLKOUT,
+		.wdd_clock_hz_x1000 = PCF2127_WD_CLOCK_HZ_X1000,
+		.wdd_min_hw_heartbeat_ms = PCF2127_WD_MIN_HW_HEARTBEAT_MS,
 		.ts_count = 1,
 		.ts[0] = {
 			.regs_base = PCF2127_REG_TS1_BASE,
@@ -951,6 +987,8 @@ static struct pcf21xx_config pcf21xx_cfg[] = {
 		.reg_wd_ctl = PCF2127_REG_WD_CTL,
 		.reg_wd_val = PCF2127_REG_WD_VAL,
 		.reg_clkout = PCF2127_REG_CLKOUT,
+		.wdd_clock_hz_x1000 = PCF2127_WD_CLOCK_HZ_X1000,
+		.wdd_min_hw_heartbeat_ms = PCF2127_WD_MIN_HW_HEARTBEAT_MS,
 		.ts_count = 1,
 		.ts[0] = {
 			.regs_base = PCF2127_REG_TS1_BASE,
@@ -977,6 +1015,8 @@ static struct pcf21xx_config pcf21xx_cfg[] = {
 		.reg_wd_val = PCF2131_REG_WD_VAL,
 		.reg_clkout = PCF2131_REG_CLKOUT,
 		.reg_reset  = PCF2131_REG_SR_RESET,
+		.wdd_clock_hz_x1000 = PCF2131_WD_CLOCK_HZ_X1000,
+		.wdd_min_hw_heartbeat_ms = PCF2131_WD_MIN_HW_HEARTBEAT_MS,
 		.ts_count = 4,
 		.ts[0] = {
 			.regs_base = PCF2131_REG_TS1_BASE,
@@ -1215,7 +1255,7 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 
 	/*
 	 * Watchdog timer enabled and reset pin /RST activated when timed out.
-	 * Select 1Hz clock source for watchdog timer.
+	 * Select 1Hz clock source for watchdog timer (1/4Hz for PCF2131).
 	 * Note: Countdown timer disabled and not available.
 	 * For pca2129, pcf2129 and pcf2131, only bit[7] is for Symbol WD_CD
 	 * of register watchdg_tim_ctl. The bit[6] is labeled
