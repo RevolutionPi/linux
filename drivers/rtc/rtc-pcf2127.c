@@ -193,11 +193,13 @@ struct pcf21xx_config {
 	unsigned int has_nvmem:1;
 	unsigned int has_bit_wd_ctl_cd0:1;
 	unsigned int has_int_a_b:1; /* PCF2131 supports two interrupt outputs. */
+	unsigned int has_reset_reg:1; /* If variant has a reset register. */
 	u8 regs_td_base; /* Time/data base registers. */
 	u8 regs_alarm_base; /* Alarm function base registers. */
 	u8 reg_wd_ctl; /* Watchdog control register. */
 	u8 reg_wd_val; /* Watchdog value register. */
 	u8 reg_clkout; /* Clkout register. */
+	u8 reg_reset;  /* Reset register if available. */
 	unsigned int ts_count;
 	struct pcf21xx_ts_config ts[4];
 	struct attribute_group attribute_group;
@@ -882,6 +884,7 @@ static struct pcf21xx_config pcf21xx_cfg[] = {
 		.has_nvmem = 1,
 		.has_bit_wd_ctl_cd0 = 1,
 		.has_int_a_b = 0,
+		.has_reset_reg = 0,
 		.regs_td_base = PCF2127_REG_TIME_DATE_BASE,
 		.regs_alarm_base = PCF2127_REG_ALARM_BASE,
 		.reg_wd_ctl = PCF2127_REG_WD_CTL,
@@ -906,6 +909,7 @@ static struct pcf21xx_config pcf21xx_cfg[] = {
 		.has_nvmem = 0,
 		.has_bit_wd_ctl_cd0 = 0,
 		.has_int_a_b = 0,
+		.has_reset_reg = 0,
 		.regs_td_base = PCF2127_REG_TIME_DATE_BASE,
 		.regs_alarm_base = PCF2127_REG_ALARM_BASE,
 		.reg_wd_ctl = PCF2127_REG_WD_CTL,
@@ -930,11 +934,13 @@ static struct pcf21xx_config pcf21xx_cfg[] = {
 		.has_nvmem = 0,
 		.has_bit_wd_ctl_cd0 = 0,
 		.has_int_a_b = 1,
+		.has_reset_reg = 1,
 		.regs_td_base = PCF2131_REG_TIME_DATE_BASE,
 		.regs_alarm_base = PCF2131_REG_ALARM_BASE,
 		.reg_wd_ctl = PCF2131_REG_WD_CTL,
 		.reg_wd_val = PCF2131_REG_WD_VAL,
 		.reg_clkout = PCF2131_REG_CLKOUT,
+		.reg_reset  = PCF2131_REG_SR_RESET,
 		.ts_count = 4,
 		.ts[0] = {
 			.regs_base = PCF2131_REG_TS1_BASE,
@@ -1074,6 +1080,20 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 	set_bit(RTC_FEATURE_ALARM_RES_2S, pcf2127->rtc->features);
 	clear_bit(RTC_FEATURE_UPDATE_INTERRUPT, pcf2127->rtc->features);
 	clear_bit(RTC_FEATURE_ALARM, pcf2127->rtc->features);
+
+	/* Read device signature if available. */
+	if (pcf2127->cfg->has_reset_reg) {
+		ret = regmap_read(pcf2127->regmap, pcf2127->cfg->reg_reset, &val);
+		if (ret < 0) {
+			dev_err(dev, "reading RESET register failed\n");
+			return ret;
+		}
+
+		if (val != PCF2131_SR_RESET_READ_PATTERN) {
+			dev_err(dev, "invalid device signature: $%02X\n", (u8)val);
+			return -ENODEV;
+		}
+	}
 
 	if (alarm_irq > 0) {
 		unsigned long flags;
