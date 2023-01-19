@@ -448,7 +448,9 @@ static int pcf2127_wdt_ping(struct watchdog_device *wdd)
 {
 	struct pcf2127 *pcf2127 = watchdog_get_drvdata(wdd);
 
-	return regmap_write(pcf2127->regmap, pcf2127->cfg->reg_wd_val, wdd->timeout);
+	return regmap_write(pcf2127->regmap, pcf2127->cfg->reg_wd_val,
+			    WD_COUNTER(wdd->timeout,
+				       pcf2127->cfg->wdd_clock_hz_x1000));
 }
 
 /*
@@ -526,12 +528,11 @@ static int pcf2127_watchdog_init(struct device *dev, struct pcf2127 *pcf2127)
 		WD_PERIOD_S(2, pcf2127->cfg->wdd_clock_hz_x1000);
 	pcf2127->wdd.max_timeout =
 		WD_PERIOD_S(255, pcf2127->cfg->wdd_clock_hz_x1000);
-	pcf2127->wdd.timeout = WD_COUNTER(PCF2127_WD_VAL_DEFAULT,
-					  pcf2127->cfg->wdd_clock_hz_x1000);
+	pcf2127->wdd.timeout = PCF2127_WD_VAL_DEFAULT;
 
 	dev_dbg(dev, "%s min = %ds\n", __func__, pcf2127->wdd.min_timeout);
 	dev_dbg(dev, "%s max = %ds\n", __func__, pcf2127->wdd.max_timeout);
-	dev_dbg(dev, "%s def = %d\n", __func__, pcf2127->wdd.timeout);
+	dev_dbg(dev, "%s def = %ds\n", __func__, pcf2127->wdd.timeout);
 
 	pcf2127->wdd.min_hw_heartbeat_ms = pcf2127->cfg->wdd_min_hw_heartbeat_ms;
 	pcf2127->wdd.status = WATCHDOG_NOWAYOUT_INIT_STATUS;
