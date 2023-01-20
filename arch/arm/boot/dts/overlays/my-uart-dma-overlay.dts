@@ -1,0 +1,24 @@
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Flat S (2022)
+ */
+
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/{
+	compatible = "brcm,bcm2711";
+
+	fragment@1 {
+		target = <&uart3>;
+		__overlay__ {
+			dmas = <&dma 19>, <&dma 20>;
+			dma-names = "tx", "rx";
+		};
+	};
+};
