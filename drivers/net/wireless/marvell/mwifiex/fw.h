@@ -1055,6 +1055,7 @@ enum API_VER_ID {
 	FW_API_VER_ID = 2,
 	UAP_FW_API_VER_ID = 3,
 	CHANRPT_API_VER_ID = 4,
+	FW_HOTFIX_VER_ID = 5,
 };
 
 struct hw_spec_api_rev {
