@@ -503,6 +503,8 @@ static struct bcm2835_desc *bcm2835_dma_create_cb_chain(
 	d->dir = direction;
 	d->cyclic = cyclic;
 
+	trace_printk("DMA: info: 0x%08x, extra_info: 0x%08x\n", info,
+		finalextrainfo);
 	/*
 	 * Iterate over all frames, create a control block
 	 * for each frame and link them together.
@@ -528,13 +530,16 @@ static struct bcm2835_desc *bcm2835_dma_create_cb_chain(
 		} else {
 			control_block->info = info;
 			control_block->src = src;
+			trace_printk("CONTROL BLOCK SRC: %pad\n", &src);
 			control_block->dst = dst;
+			trace_printk("CONTROL BLOCK DST: %pad\n", &dst);
 			control_block->stride = 0;
 			control_block->next = 0;
 		}
 
 		/* set up length in control_block if requested */
 		if (buf_len) {
+			trace_printk("DMA: buf len: %u\n", buf_len);
 			/* calculate length honoring period_length */
 			bcm2835_dma_create_cb_set_length(
 				c, control_block,
@@ -573,7 +578,11 @@ static struct bcm2835_desc *bcm2835_dma_create_cb_chain(
 
 		scb->ti |= to_bcm2711_ti(finalextrainfo);
 	} else {
+		control_block = d->cb_list[d->frames - 1].cb;
+
 		d->cb_list[d->frames - 1].cb->info |= finalextrainfo;
+
+
 	}
 
 	/* detect a size missmatch */
@@ -622,13 +631,48 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 			for (addr = sg_dma_address(sgent),
 				     len = sg_dma_len(sgent);
 			     len > 0;
-			     addr += cb->cb->length, len -= cb->cb->length,
 			     cb++) {
-				if (direction == DMA_DEV_TO_MEM)
+				if (direction == DMA_DEV_TO_MEM) {
 					cb->cb->dst = addr;
-				else
+					trace_printk("dst addr is 0x%llx\n", (u64) addr);
+					trace_printk("2: dst addr is %pad\n", &addr);
+				} else {
 					cb->cb->src = addr;
+					trace_printk("src addr is 0x%llx\n", (u64) addr);
+					trace_printk("2: src addr is %pad\n", &addr);
+				}
 				cb->cb->length = min(len, max_len);
+
+
+			     	addr += cb->cb->length;
+				len -= cb->cb->length;
+
+#if 1
+				if (c->dreq == 19) {
+					trace_printk("DMA: setting 2D mode\n");
+					cb->cb->info |= BCM2835_DMA_TDMODE;
+
+					trace_printk("DMA: GOT dreq 19, adjusting len (0x%08x / %u)\n",
+						cb->cb->length, cb->cb->length);
+#if 0
+					cb->cb->length--;
+					cb->cb->length <<= 16;
+					cb->cb->length |= 1;
+#else
+					cb->cb->length--;
+					cb->cb->length <<= 16;
+					cb->cb->length |= 1;
+#endif
+				}
+#endif
+				trace_printk("DMA: DUMP CB\n");
+				trace_printk("DMA: CB INFO: 0x%08x\n", cb->cb->info); 
+				trace_printk("DMA: CB src: 0x%08x\n", cb->cb->src); 
+				trace_printk("DMA: CB dst: 0x%08x\n", cb->cb->dst); 
+				trace_printk("DMA: CB length: 0x%08x\n", cb->cb->length); 
+				trace_printk("DMA: CB stride: 0x%08x\n", cb->cb->stride); 
+				trace_printk("DMA: CB next: 0x%08x\n", cb->cb->next); 
+				trace_printk("DMA: DUMP CB END\n");
 			}
 		}
 	}
@@ -904,8 +948,11 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 		return NULL;
 	}
 
-	if (c->dreq != 0)
+	if (c->dreq != 0) {
+		trace_printk("got dreq %u (info is 0x%08x)\n", c->dreq, info);
 		info |= BCM2835_DMA_PER_MAP(c->dreq);
+		trace_printk("info after adjustement: 0x%08x\n", info);
+	}
 
 	if (direction == DMA_DEV_TO_MEM) {
 		if (c->cfg.src_addr_width != DMA_SLAVE_BUSWIDTH_4_BYTES)
@@ -1190,6 +1237,7 @@ static struct dma_chan *bcm2835_dma_xlate(struct of_phandle_args *spec,
 
 	/* Set DREQ from param */
 	to_bcm2835_dma_chan(chan)->dreq = spec->args[0];
+	trace_printk("DMA: got dreq %u\n", to_bcm2835_dma_chan(chan)->dreq); 
 
 	return chan;
 }
