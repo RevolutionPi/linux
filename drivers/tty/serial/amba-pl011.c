@@ -53,6 +53,8 @@
 #define UART_DR_ERROR		(UART011_DR_OE|UART011_DR_BE|UART011_DR_PE|UART011_DR_FE)
 #define UART_DUMMY_DR_RX	(1 << 16)
 
+#define USE_TX_DMA
+
 enum {
 	REG_DR,
 	REG_ST_DMAWM,
@@ -244,6 +246,11 @@ struct pl011_dmatx_data {
 	struct scatterlist	sg;
 	char			*buf;
 	bool			queued;
+	
+	/* TESTBUFFER */
+#define TEST_BUFFER_SIZE	4096
+	void *			testbuf_addr;
+	dma_addr_t		testbuf_paddr;
 };
 
 /*
@@ -272,6 +279,8 @@ struct uart_amba_port {
 #endif
 };
 
+static void pl011_rs485_tx_start(struct uart_amba_port *uap);
+static void dump_buffer(unsigned char *buff, unsigned int len);
 static unsigned int pl011_tx_empty(struct uart_port *port);
 
 static unsigned int pl011_reg_to_offset(const struct uart_amba_port *uap,
@@ -394,23 +403,67 @@ static void pl011_sgbuf_free(struct dma_chan *chan, struct pl011_sgbuf *sg,
 	}
 }
 
+static int setup_test_buffer(struct uart_amba_port *uap)
+{
+	dma_addr_t paddr;
+	void *addr;
+
+	addr = dma_alloc_coherent(uap->port.dev, TEST_BUFFER_SIZE, &paddr,
+				  GFP_KERNEL);
+	if (!addr) {
+		printk(KERN_ERR "failed to allocate testbuffer\n");
+		return -ENOMEM;
+	}
+
+	trace_printk("got dma addr (virt: 0x%08x), phys: 0x%llx", (u32) addr,
+		(u64) paddr);
+
+	memset(addr, 'L', TEST_BUFFER_SIZE); 
+		
+	uap->dmatx.testbuf_addr = addr;
+	uap->dmatx.testbuf_paddr = paddr;
+
+	return 0;
+}
+
 static void pl011_dma_probe(struct uart_amba_port *uap)
 {
 	/* DMA is the sole user of the platform data right now */
 	struct amba_pl011_data *plat = dev_get_platdata(uap->port.dev);
 	struct device *dev = uap->port.dev;
-	struct dma_slave_config tx_conf = {
-		.dst_addr = uap->port.mapbase +
-				 pl011_reg_to_offset(uap, REG_DR),
-		.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE,
-		.direction = DMA_MEM_TO_DEV,
-		.dst_maxburst = uap->fifosize >> 1,
-		.device_fc = false,
-	};
+	struct dma_slave_config tx_conf;
 	struct dma_chan *chan;
 	dma_cap_mask_t mask;
 
+	trace_printk("dst addr is %pad\n", &tx_conf.dst_addr);
+
 	uap->dma_probed = true;
+
+	if (setup_test_buffer(uap)) {
+		trace_printk("failed to setup test buffer\n");
+		return;
+	}
+
+	memset(&tx_conf, 0, sizeof(tx_conf));
+	
+#if 1
+	tx_conf.dst_addr = 0x7e201600;
+#else
+	tx_conf.dst_addr = uap->dmatx.testbuf_paddr;
+#endif
+	tx_conf.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+	tx_conf.direction = DMA_MEM_TO_DEV;
+	tx_conf.dst_maxburst = uap->fifosize >> 1;
+	tx_conf.device_fc = false;
+
+
+	trace_printk("DST ADDR is %pad\n", &tx_conf.dst_addr);
+
+
+#ifndef USE_TX_DMA
+	return;
+#endif
+
 	chan = dma_request_chan(dev, "tx");
 	if (IS_ERR(chan)) {
 		if (PTR_ERR(chan) == -EPROBE_DEFER) {
@@ -458,7 +511,7 @@ static void pl011_dma_probe(struct uart_amba_port *uap)
 		struct dma_slave_config rx_conf = {
 			.src_addr = uap->port.mapbase +
 				pl011_reg_to_offset(uap, REG_DR),
-			.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE,
+			.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES,
 			.direction = DMA_DEV_TO_MEM,
 			.src_maxburst = uap->fifosize >> 2,
 			.device_fc = false,
@@ -532,6 +585,16 @@ static void pl011_dma_remove(struct uart_amba_port *uap)
 		dma_release_channel(uap->dmatx.chan);
 	if (uap->dmarx.chan)
 		dma_release_channel(uap->dmarx.chan);
+	if (uap->dmatx.testbuf_addr) {
+
+		trace_printk("DUMP TEST BUFFER\n");
+		dump_buffer(uap->dmatx.testbuf_addr, 50);
+		trace_printk("DUMP TEST BUFFER\n");
+
+		dma_free_coherent(uap->port.dev, TEST_BUFFER_SIZE,
+				  uap->dmatx.testbuf_addr,
+				  uap->dmatx.testbuf_paddr);
+	}
 }
 
 /* Forward declare these for the refill routine */
@@ -548,6 +611,8 @@ static void pl011_dma_tx_callback(void *data)
 	struct pl011_dmatx_data *dmatx = &uap->dmatx;
 	unsigned long flags;
 	u16 dmacr;
+
+	trace_printk("TX CALLBACK CALLED\n");
 
 	spin_lock_irqsave(&uap->port.lock, flags);
 	if (uap->dmatx.queued)
@@ -574,16 +639,29 @@ static void pl011_dma_tx_callback(void *data)
 		return;
 	}
 
-	if (pl011_dma_tx_refill(uap) <= 0)
+	if (pl011_dma_tx_refill(uap) <= 0) {
 		/*
 		 * We didn't queue a DMA buffer for some reason, but we
 		 * have data pending to be sent.  Re-enable the TX IRQ.
 		 */
 		pl011_start_tx_pio(uap);
+	}
 
 	spin_unlock_irqrestore(&uap->port.lock, flags);
 }
 
+static void dump_buffer(unsigned char *buff, unsigned int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+		trace_printk("0x%02x (%c) ", buff[i], buff[i]);
+
+	trace_printk("\n");
+}
+
+
+#define USE_ORIG_DATA_LAYOUT	1
 /*
  * Try to refill the TX DMA buffer.
  * Locking: called with port lock held and IRQs disabled.
@@ -623,9 +701,32 @@ static int pl011_dma_tx_refill(struct uart_amba_port *uap)
 	if (count > PL011_DMA_BUFFER_SIZE)
 		count = PL011_DMA_BUFFER_SIZE;
 
-	if (xmit->tail < xmit->head)
+	if (xmit->tail < xmit->head) {
+#if USE_ORIG_DATA_LAYOUT
 		memcpy(&dmatx->buf[0], &xmit->buf[xmit->tail], count);
-	else {
+
+		trace_printk("Dumping (orig layout) DMA buffer (1)\n");
+		dump_buffer(dmatx->buf, count);
+		trace_printk("Dumping (orig layout) DMA buffer (1) END\n");
+
+#else
+		u32 dmadata;
+		int i;
+
+		for (i = 0; i < count; i++) {
+			dmadata = xmit->buf[xmit->tail + i];
+			memcpy(&dmatx->buf[i * 4], &dmadata, sizeof(dmadata));
+		}
+		trace_printk("Dumping DMA buffer (1)\n");
+		dump_buffer(dmatx->buf, count * 4);
+		trace_printk("Dumping DMA buffer (1) END\n");
+#endif
+
+	} else {
+#if !USE_ORIG_DATA_LAYOUT
+		u32 dmadata;
+		int i;
+#endif
 		size_t first = UART_XMIT_SIZE - xmit->tail;
 		size_t second;
 
@@ -633,12 +734,47 @@ static int pl011_dma_tx_refill(struct uart_amba_port *uap)
 			first = count;
 		second = count - first;
 
+#if USE_ORIG_DATA_LAYOUT
 		memcpy(&dmatx->buf[0], &xmit->buf[xmit->tail], first);
-		if (second)
+
+		trace_printk("Dumping (orig layout) DMA buffer (2a)\n");
+		dump_buffer(dmatx->buf, first);
+		trace_printk("Dumping (orig layout) DMA buffer (2a) END\n");
+
+#else
+		for (i = 0; i < first; i++) {
+			dmadata = xmit->buf[xmit->tail + i];
+			memcpy(&dmatx->buf[i * 4], &dmadata, sizeof(dmadata));
+		}
+		trace_printk("Dumping DMA buffer (2a)\n");
+		dump_buffer(dmatx->buf, first * 4);
+		trace_printk("Dumping DMA buffer (2a) END\n");
+#endif
+
+		if (second) {
+#if USE_ORIG_DATA_LAYOUT 
 			memcpy(&dmatx->buf[first], &xmit->buf[0], second);
+			trace_printk("Dumping (orig layout) DMA buffer (2b)\n");
+			dump_buffer(&dmatx->buf[first], second);
+			trace_printk("Dumping (orig layout) DMA buffer (2b) END\n");
+#else
+			for (i = 0; i < second; i++) {
+				dmadata = xmit->buf[i];
+				memcpy(&dmatx->buf[i * 4], &dmadata, sizeof(dmadata));
+			}
+
+			trace_printk("Dumping DMA buffer (2b)\n");
+			dump_buffer(&dmatx->buf[first], second * 4);
+			trace_printk("Dumping DMA buffer (2b) END\n");
+#endif
+		}
 	}
 
+#if USE_ORIG_DATA_LAYOUT 
 	dmatx->sg.length = count;
+#else
+	dmatx->sg.length = count * 4;
+#endif
 
 	if (dma_map_sg(dma_dev->dev, &dmatx->sg, 1, DMA_TO_DEVICE) != 1) {
 		uap->dmatx.queued = false;
@@ -646,8 +782,10 @@ static int pl011_dma_tx_refill(struct uart_amba_port *uap)
 		return -EBUSY;
 	}
 
+	trace_printk("amba: preparing slave sg");
 	desc = dmaengine_prep_slave_sg(chan, &dmatx->sg, 1, DMA_MEM_TO_DEV,
 					     DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	trace_printk("amba: preparing slave sg DONE");
 	if (!desc) {
 		dma_unmap_sg(dma_dev->dev, &dmatx->sg, 1, DMA_TO_DEVICE);
 		uap->dmatx.queued = false;
@@ -664,10 +802,18 @@ static int pl011_dma_tx_refill(struct uart_amba_port *uap)
 	desc->callback_param = uap;
 
 	/* All errors should happen at prepare time */
+	trace_printk("amba: submitting desc");
 	dmaengine_submit(desc);
+	trace_printk("amba: submitting desc DONE");
 
 	/* Fire the DMA transaction */
+	trace_printk("amba: issue pending ");
 	dma_dev->device_issue_pending(chan);
+	trace_printk("amba: issue pending done");
+
+	if ((uap->port.rs485.flags & SER_RS485_ENABLED) &&
+	    !uap->rs485_tx_started)
+		pl011_rs485_tx_start(uap);
 
 	uap->dmacr |= UART011_TXDMAE;
 	pl011_write(uap->dmacr, uap, REG_DMACR);
@@ -1122,6 +1268,8 @@ static void pl011_dma_startup(struct uart_amba_port *uap)
 		return;
 	}
 
+	memset(uap->dmatx.buf, 'a', 1024);
+
 	sg_init_one(&uap->dmatx.sg, uap->dmatx.buf, PL011_DMA_BUFFER_SIZE);
 
 	/* The DMA buffer is now the FIFO the TTY subsystem can use */
@@ -1130,6 +1278,8 @@ static void pl011_dma_startup(struct uart_amba_port *uap)
 
 	if (!uap->dmarx.chan)
 		goto skip_rx;
+
+	goto skip_rx;
 
 	/* Allocate and map DMA RX buffers */
 	ret = pl011_sgbuf_init(uap->dmarx.chan, &uap->dmarx.sgbuf_a,
@@ -1353,8 +1503,10 @@ static void pl011_start_tx(struct uart_port *port)
 	struct uart_amba_port *uap =
 	    container_of(port, struct uart_amba_port, port);
 
-	if (!pl011_dma_tx_start(uap))
+	if (!pl011_dma_tx_start(uap)) {
+		trace_printk("Using PIO instead of DMA\n");
 		pl011_start_tx_pio(uap);
+	}
 }
 
 static void pl011_stop_rx(struct uart_port *port)
@@ -1428,6 +1580,7 @@ static bool pl011_tx_char(struct uart_amba_port *uap, unsigned char c,
 	    pl011_read(uap, REG_FR) & UART01x_FR_TXFF)
 		return false; /* unable to transmit character */
 
+	trace_printk("PIO - 0x%02x (%c) ", c, c);
 	pl011_write(c, uap, REG_DR);
 	mb();
 	uap->port.icount.tx++;
@@ -2750,10 +2903,14 @@ static int pl011_setup_port(struct device *dev, struct uart_amba_port *uap,
 	void __iomem *base;
 	int ret;
 
+	trace_printk("RESOURCE START: 0x%llx\n", mmiobase->start);
+	trace_printk("RESOURCE END: 0x%llx\n", mmiobase->end);
+
 	base = devm_ioremap_resource(dev, mmiobase);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
+	trace_printk("BASE: 0x%08x\n", *((u32 * )base));
 	/* Don't use DT serial<n> aliases - it causes the device to
 	   be renumbered to ttyAMA1 if it is the second serial port in the
 	   system, even though the other one is ttyS0. The 8250 driver
