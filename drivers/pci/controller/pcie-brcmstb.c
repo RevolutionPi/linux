@@ -682,6 +682,8 @@ static bool brcm_pcie_link_up(struct brcm_pcie *pcie)
 	u32 dla = FIELD_GET(PCIE_MISC_PCIE_STATUS_PCIE_DL_ACTIVE_MASK, val);
 	u32 plu = FIELD_GET(PCIE_MISC_PCIE_STATUS_PCIE_PHYLINKUP_MASK, val);
 
+	dev_info(pcie->dev, "%s: PCIE_STATUS=%#08x, DL_ACTIVE=%u, PHYLINKUP=%u\n", __func__, val, dla, plu);
+
 	return dla && plu;
 }
 
@@ -1098,6 +1100,53 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 	}
 	writel(tmp, base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
 
+	dev_info(dev, "%s: DevSta=%#04x LnkCap=%#08x LnkSta=%#04x LnkSta2=%#04x\n",
+		 __func__,
+		 readw(base + BRCM_PCIE_CAP_REGS + PCI_EXP_DEVSTA),
+		 readl(base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCAP),
+		 lnksta,
+		 readw(base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKSTA2));
+
+	if (cls != PCI_EXP_LNKSTA_CLS_5_0GB) {
+		u16 lnkctl, lnkctl2;
+		u32 lnkcap;
+
+		dev_info(dev, "broken device, retraining non-functional downstream link at 2.5GT/s\n");
+		lnkctl = readw(base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL);
+		lnkctl |= PCI_EXP_LNKCTL_RL;
+		lnkctl2 = readw(base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
+		lnkctl2 &= ~PCI_EXP_LNKCTL2_TLS;
+		lnkctl2 |= PCI_EXP_LNKCTL2_TLS_2_5GT;
+		writew(lnkctl2, base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
+		writew(lnkctl, base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL);
+
+		dev_info(dev, "clearing Retrain Link bit, not sure if necessary\n");
+		lnkctl &= ~PCI_EXP_LNKCTL_RL;
+		writew(lnkctl, base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL);
+
+		ssleep(1);
+		dev_info(dev, "Link after waiting 1 sec: %d\n", brcm_pcie_link_up(pcie));
+
+#if 0
+		/* @Philipp: Enable only if 2.5GT/s works reliably */
+		dev_info(dev, "removing 2.5GT/s downstream link speed restriction\n");
+		lnkcap = readl(base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCAP);
+		lnkctl = readw(base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL);
+		lnkctl |= PCI_EXP_LNKCTL_RL;
+		lnkctl2 &= ~PCI_EXP_LNKCTL2_TLS;
+		lnkctl2 |= lnkcap & PCI_EXP_LNKCAP_SLS;
+		writew(lnkctl2, base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
+		writew(lnkctl, base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL);
+
+		dev_info(dev, "clearing Retrain Link bit, not sure if necessary\n");
+		lnkctl &= ~PCI_EXP_LNKCTL_RL;
+		writew(lnkctl, base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL);
+
+		ssleep(1);
+		dev_info(dev, "Link after waiting 1 sec: %d\n", brcm_pcie_link_up(pcie));
+#endif
+	}
+
 	return 0;
 }
 
@@ -1158,8 +1207,7 @@ static int brcm_pcie_add_bus(struct pci_bus *bus)
 	}
 
 no_regulators:
-	brcm_pcie_start_link(pcie);
-	return 0;
+	return brcm_pcie_start_link(pcie);
 }
 
 static void brcm_pcie_remove_bus(struct pci_bus *bus)
