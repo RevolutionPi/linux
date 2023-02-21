@@ -83,9 +83,9 @@ static int pibridge_discard_timeout(u16 len, u16 timeout)
 	unsigned int discarded;
 	int ret = 0;
 
-	wait_event_timeout(pi->read_queue,
-			   kfifo_len(&pi->read_fifo) >= len,
-			   msecs_to_jiffies(timeout) + 1);
+	wait_event_hrtimeout(pi->read_queue,
+			     kfifo_len(&pi->read_fifo) >= len,
+			     ms_to_ktime(timeout));
 
 	mutex_lock(&pi->lock);
 	discarded = kfifo_len(&pi->read_fifo);
@@ -184,8 +184,8 @@ int pibridge_recv_timeout(void *buf, u8 len, u16 timeout)
 
 	trace_pibridge_receive_begin(len);
 
-	wait_event_timeout(pi->read_queue, kfifo_len(&pi->read_fifo) >= len,
-			   msecs_to_jiffies(timeout) + 1);
+	wait_event_hrtimeout(pi->read_queue, kfifo_len(&pi->read_fifo) >= len,
+			     ms_to_ktime(timeout));
 
 	mutex_lock(&pi->lock);
 	received = kfifo_out(&pi->read_fifo, buf, len);
