@@ -1157,6 +1157,7 @@ static void quirk_usb_handoff_xhci(struct pci_dev *pdev)
 	 * this is optional for xHCI host controllers.
 	 */
 	ext_cap_offset = xhci_find_next_ext_cap(base, 0, XHCI_EXT_CAPS_LEGACY);
+	pci_info(pdev, "%s: ext_cap_offset=%#x\n", __func__, (unsigned int)ext_cap_offset);
 
 	if (!ext_cap_offset)
 		goto hc_init;
@@ -1167,20 +1168,25 @@ static void quirk_usb_handoff_xhci(struct pci_dev *pdev)
 		goto iounmap;
 	}
 	val = readl(base + ext_cap_offset);
+	pci_info(pdev, "%s: ext_cap_offset val=%#x\n", __func__, val);
 
 	/* Auto handoff never worked for these devices. Force it and continue */
 	if ((pdev->vendor == PCI_VENDOR_ID_TI && pdev->device == 0x8241) ||
 			(pdev->vendor == PCI_VENDOR_ID_RENESAS
 			 && pdev->device == 0x0014)) {
 		val = (val | XHCI_HC_OS_OWNED) & ~XHCI_HC_BIOS_OWNED;
+		pci_info(pdev, "%s: TI/Renesas: forcing ext_cap_offset val=%#x\n", __func__, val);
 		writel(val, base + ext_cap_offset);
 	}
 
 	/* If the BIOS owns the HC, signal that the OS wants it, and wait */
 	if (val & XHCI_HC_BIOS_OWNED) {
+		pci_info(pdev, "%s: val & XHCI_HC_BIOS_OWNED\n", __func__);
+		pci_info(pdev, "%s: TI/Renesas: writing ext_cap_offset val=%#x\n", __func__, val);
 		writel(val | XHCI_HC_OS_OWNED, base + ext_cap_offset);
 
 		/* Wait for 1 second with 10 microsecond polling interval */
+		pci_info(pdev, "%s: Wait for 1 second with 10 microsecond polling interval\n", __func__);
 		timeout = handshake(base + ext_cap_offset, XHCI_HC_BIOS_OWNED,
 				0, 1000000, 10);
 
@@ -1189,27 +1195,34 @@ static void quirk_usb_handoff_xhci(struct pci_dev *pdev)
 			dev_warn(&pdev->dev,
 				 "xHCI BIOS handoff failed (BIOS bug ?) %08x\n",
 				 val);
+			pci_info(pdev, "%s: TI/Renesas: writing ext_cap_offset val=%#x\n", __func__, val & ~XHCI_HC_BIOS_OWNED);
 			writel(val & ~XHCI_HC_BIOS_OWNED, base + ext_cap_offset);
 		}
 	}
 
+	pci_info(pdev, "%s: reading ext_cap_offset + XHCI_LEGACY_CONTROL_OFFSET\n", __func__);
 	val = readl(base + ext_cap_offset + XHCI_LEGACY_CONTROL_OFFSET);
+	pci_info(pdev, "%s: ext_cap_offset + XHCI_LEGACY_CONTROL_OFFSET val=%#x\n", __func__, val);
 	/* Mask off (turn off) any enabled SMIs */
 	val &= XHCI_LEGACY_DISABLE_SMI;
 	/* Mask all SMI events bits, RW1C */
 	val |= XHCI_LEGACY_SMI_EVENTS;
 	/* Disable any BIOS SMIs and clear all SMI events*/
+	pci_info(pdev, "%s: writing ext_cap_offset + XHCI_LEGACY_CONTROL_OFFSET val=%#x\n", __func__, val);
 	writel(val, base + ext_cap_offset + XHCI_LEGACY_CONTROL_OFFSET);
 
 hc_init:
+	pci_info(pdev, "%s: hc_init\n", __func__);
 	if (pdev->vendor == PCI_VENDOR_ID_INTEL)
 		usb_enable_intel_xhci_ports(pdev);
 
 	op_reg_base = base + XHCI_HC_LENGTH(readl(base));
+	pci_info(pdev, "%s: op_reg_base=%px\n", __func__, op_reg_base);
 
 	/* Wait for the host controller to be ready before writing any
 	 * operational or runtime registers.  Wait 5 seconds and no more.
 	 */
+	pci_info(pdev, "%s: Wait for the host controller to be ready\n", __func__);
 	timeout = handshake(op_reg_base + XHCI_STS_OFFSET, XHCI_STS_CNR, 0,
 			5000000, 10);
 	/* Assume a buggy HC and start HC initialization anyway */
@@ -1221,11 +1234,13 @@ hc_init:
 	}
 
 	/* Send the halt and disable interrupts command */
+	pci_info(pdev, "%s: Send the halt and disable interrupts command\n", __func__);
 	val = readl(op_reg_base + XHCI_CMD_OFFSET);
 	val &= ~(XHCI_CMD_RUN | XHCI_IRQS);
 	writel(val, op_reg_base + XHCI_CMD_OFFSET);
 
 	/* Wait for the HC to halt - poll every 125 usec (one microframe). */
+	pci_info(pdev, "%s: Wait for the HC to halt\n", __func__);
 	timeout = handshake(op_reg_base + XHCI_STS_OFFSET, XHCI_STS_HALT, 1,
 			XHCI_MAX_HALT_USEC, 125);
 	if (timeout) {
