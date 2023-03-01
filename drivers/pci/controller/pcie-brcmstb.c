@@ -376,6 +376,14 @@ static int brcm_pcie_set_ssc(struct brcm_pcie *pcie)
 	return ssc && pll ? 0 : -EIO;
 }
 
+static void brcm_pcie_set_deemph(struct brcm_pcie *pcie)
+{
+	u16 lnkctl2 = readw(pcie->base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
+
+	lnkctl2 |= PCI_EXP_LNKCTL2_SEL_DEEMPH;
+	writew(lnkctl2, pcie->base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
+}
+
 /* Limits operation to a specific generation (1, 2, or 3) */
 static void brcm_pcie_set_gen(struct brcm_pcie *pcie, int gen)
 {
@@ -1038,6 +1046,9 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 	bool ssc_good = false;
 	u32 tmp;
 	int ret, i;
+
+
+	brcm_pcie_set_deemph(pcie);
 
 	/* Unassert the fundamental reset */
 	pcie->perst_set(pcie, 0);
