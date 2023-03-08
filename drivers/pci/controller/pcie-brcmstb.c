@@ -956,6 +956,7 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	if (pcie->gen)
 		brcm_pcie_set_gen(pcie, pcie->gen);
 
+	msleep(100);
 	/* Unassert the fundamental reset */
 	pcie->perst_set(pcie, 0);
 
