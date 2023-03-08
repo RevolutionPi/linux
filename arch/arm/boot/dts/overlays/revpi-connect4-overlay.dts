@@ -292,7 +292,7 @@
 	fragment@7 {
 		target = <&pcie0>;
 		__overlay__ {
-			status = "disabled";
+			/* No configuration till now*/
 		};
 	};
 };
