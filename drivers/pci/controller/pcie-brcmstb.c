@@ -959,6 +959,15 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	msleep(100);
 	/* Unassert the fundamental reset */
 	pcie->perst_set(pcie, 0);
+	msleep(100);
+	pcie->perst_set(pcie, 1);
+	msleep(100);
+	pcie->perst_set(pcie, 0);
+	msleep(100);
+	pcie->perst_set(pcie, 1);
+	msleep(100);
+	pcie->perst_set(pcie, 0);
+	msleep(100);
 
 	/*
 	 * Wait for 100ms after PERST# deassertion; see PCIe CEM specification
