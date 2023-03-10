@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/msi.h>
 #include <linux/of_address.h>
+#include <linux/of_gpio.h>
 #include <linux/of_irq.h>
 #include <linux/of_pci.h>
 #include <linux/of_platform.h>
@@ -289,6 +290,7 @@ struct brcm_pcie {
 	u32			hw_rev;
 	void			(*perst_set)(struct brcm_pcie *pcie, u32 val);
 	void			(*bridge_sw_init_set)(struct brcm_pcie *pcie, u32 val);
+	struct gpio_desc	*reset_gpio;
 };
 
 /*
@@ -756,19 +758,39 @@ static inline void brcm_pcie_perst_set_7278(struct brcm_pcie *pcie, u32 val)
 {
 	u32 tmp;
 
+	if (pcie->reset_gpio) {
+		// FIXME
+	}
+
 	/* Perst bit has moved and assert value is 0 */
 	tmp = readl(pcie->base + PCIE_MISC_PCIE_CTRL);
 	u32p_replace_bits(&tmp, !val, PCIE_MISC_PCIE_CTRL_PCIE_PERSTB_MASK);
 	writel(tmp, pcie->base +  PCIE_MISC_PCIE_CTRL);
+
+	if (pcie->reset_gpio) {
+		// FIXME
+	}
 }
 
 static inline void brcm_pcie_perst_set_generic(struct brcm_pcie *pcie, u32 val)
 {
 	u32 tmp;
 
+	if (pcie->reset_gpio) {
+		gpiod_set_value(pcie->reset_gpio, val != 0 ? 0 : 1);
+		/* wait 100µs before we disable the clock */
+		usleep_range(10000, 11000);
+	}
+
 	tmp = readl(pcie->base + PCIE_RGR1_SW_INIT_1(pcie));
 	u32p_replace_bits(&tmp, val, PCIE_RGR1_SW_INIT_1_PERST_MASK);
 	writel(tmp, pcie->base + PCIE_RGR1_SW_INIT_1(pcie));
+
+	if (pcie->reset_gpio) {
+		/* wait 100ms to make sure every device is ready for PERST# deassert */
+		msleep(100);
+		gpiod_set_value(pcie->reset_gpio, val != 0 ? 0 : 1);
+	}
 }
 
 static inline int brcm_pcie_get_rc_bar2_size_and_offset(struct brcm_pcie *pcie,
@@ -1280,6 +1302,22 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 
 	pcie->ssc = of_property_read_bool(np, "brcm,enable-ssc");
 	pcie->l1ss = of_property_read_bool(np, "brcm,enable-l1ss");
+
+	pcie->reset_gpio = devm_gpiod_get_from_of_node(&pdev->dev, np,
+						       "reset-gpio", 0,
+						       GPIOF_OUT_INIT_HIGH,
+						       "PERST#");
+	ret = PTR_ERR_OR_ZERO(pcie->reset_gpio);
+	if (ret) {
+		if (ret == -ENOENT) {
+			pcie->reset_gpio = NULL;
+		} else {
+			if (ret != -EPROBE_DEFER)
+				dev_err(&pdev->dev, "Failed to get reset-gpio: %i\n",
+					ret);
+			return ret;
+		}
+	}
 
 	ret = clk_prepare_enable(pcie->clk);
 	if (ret) {
