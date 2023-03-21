@@ -180,7 +180,6 @@ int pibridge_recv_timeout(void *buf, u8 len, u16 timeout)
 {
 	struct pibridge *pi = pibridge_s;
 	unsigned int received;
-	int ret = len;
 
 	trace_pibridge_receive_begin(len);
 
@@ -193,12 +192,10 @@ int pibridge_recv_timeout(void *buf, u8 len, u16 timeout)
 
 	trace_pibridge_receive_end(buf, received);
 
-	if (received != len) {
+	if (received != len)
 		trace_pibridge_receive_timeout(received, len, timeout);
-		ret = 0;
-	}
 
-	return ret;
+	return received;
 }
 EXPORT_SYMBOL(pibridge_recv_timeout);
 
