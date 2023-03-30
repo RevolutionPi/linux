@@ -147,9 +147,7 @@
 			rs485_pins: rs485_pins {
 				/* TX RX TX_EN */
 				brcm,pins     = <12 13 15>;
-				brcm,function = <BCM2835_FSEL_ALT4
-				                 BCM2835_FSEL_ALT4
-				                 BCM2835_FSEL_ALT4>;
+				brcm,function = <BCM2835_FSEL_ALT4>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
 			};
 			spi1_cs_pins: spi1_cs_pins {
