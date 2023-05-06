@@ -24,6 +24,7 @@
 #include <linux/wait.h>
 #include <linux/acpi.h>
 #include <linux/freezer.h>
+#include <linux/reset.h>
 #include "tpm.h"
 #include "tpm_tis_core.h"
 
@@ -1003,6 +1004,7 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 		      const struct tpm_tis_phy_ops *phy_ops,
 		      acpi_handle acpi_dev_handle)
 {
+	struct reset_control *rstc;
 	u32 vendor;
 	u32 intfcaps;
 	u32 intmask;
@@ -1033,6 +1035,20 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	mutex_init(&priv->locality_count_mutex);
 
 	dev_set_drvdata(&chip->dev, priv);
+
+	rstc = reset_control_get_optional_exclusive(dev, NULL);
+	if (IS_ERR(rstc)) {
+		rc = PTR_ERR(rstc);
+		dev_err_probe(dev, rc, "Cannot get reset control: %d\n", rc);
+		return rc;
+	}
+
+	rc = reset_control_deassert(rstc);
+	reset_control_put(rstc);
+	if (rc) {
+		dev_err(dev, "Cannot deassert reset control: %d\n", rc);
+		return rc;
+	}
 
 	rc = tpm_tis_read32(priv, TPM_DID_VID(0), &vendor);
 	if (rc < 0)
