@@ -324,7 +324,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 	if (crc != crc_rcv) {
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
+			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
 			crc_rcv, crc);
 			return -EBADMSG;
 	}
