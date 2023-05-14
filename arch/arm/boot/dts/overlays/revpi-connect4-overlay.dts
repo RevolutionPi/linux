@@ -285,6 +285,10 @@
 			pinctrl-0 = <&pb_uart_pins>;
 			status = "okay";
 			linux,rs485-enabled-at-boot-time;
+
+			pi_bridge {
+				compatible = "kunbus,pi-bridge";
+			};
 		};
 	};
 
