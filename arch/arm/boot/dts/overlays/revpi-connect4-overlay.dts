@@ -299,4 +299,13 @@
 			/* No configuration till now*/
 		};
 	};
+
+	/* PHY1 (SoC Ethernet) */
+	fragment@8 {
+		target = <&phy1>;
+		__overlay__ {
+			/* Link Speed/Activity */
+			led-modes = <0x08 0x00>;
+		};
+	};
 };
