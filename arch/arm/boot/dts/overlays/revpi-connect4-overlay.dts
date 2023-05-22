@@ -118,6 +118,12 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
+			debug_uart_pins: debug_uart_pins {
+				/* TX (UART_1) */
+				brcm,pins     = <14>;
+				brcm,function = <BCM2835_FSEL_ALT5>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
 			pb_uart_pins: pb_uart_pins {
 				/* TX RX TX_EN */
 				brcm,pins     = <4 5 7>;
@@ -287,8 +293,18 @@
 		};
 	};
 
-	/* PCIe0 */
+	/* UART1 (DEBUG) */
 	fragment@7 {
+		target = <&uart1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&debug_uart_pins>;
+			status = "okay";
+		};
+	};
+
+	/* PCIe0 */
+	fragment@8 {
 		target = <&pcie0>;
 		__overlay__ {
 			/* No configuration till now*/
