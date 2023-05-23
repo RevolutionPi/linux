@@ -118,6 +118,9 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&id_wp_pins>;
+
 			debug_uart_pins: debug_uart_pins {
 				/* TX (UART_1) */
 				brcm,pins     = <14>;
@@ -173,6 +176,12 @@
 				brcm,pins     = <10>;
 				brcm,function = <BCM2835_FSEL_GPIO_IN>;
 				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
+			id_wp_pins: id_wp_pins {
+				brcm,pins     = <17>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+				line-name     = "ID_WP";
 			};
 		};
 	};
