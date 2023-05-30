@@ -469,25 +469,32 @@ out_err:
 	return rc;
 }
 
+static void __tpm_tis_disable_interrupts(struct tpm_chip *chip)
+{
+	struct tpm_tis_data *priv = dev_get_drvdata(&chip->dev);
+	u32 intmask = 0;
+
+	tpm_tis_read32(priv, TPM_INT_ENABLE(priv->locality), &intmask);
+	intmask &= ~TPM_GLOBAL_INT_ENABLE;
+
+	tpm_tis_request_locality(chip, 0);
+	tpm_tis_write32(priv, TPM_INT_ENABLE(priv->locality), intmask);
+	tpm_tis_relinquish_locality(chip, 0);
+
+	chip->flags &= ~TPM_CHIP_FLAG_IRQ;
+}
+
 static void disable_interrupts(struct tpm_chip *chip)
 {
 	struct tpm_tis_data *priv = dev_get_drvdata(&chip->dev);
-	u32 intmask;
-	int rc;
 
 	if (priv->irq == 0)
 		return;
 
-	rc = tpm_tis_read32(priv, TPM_INT_ENABLE(priv->locality), &intmask);
-	if (rc < 0)
-		intmask = 0;
-
-	intmask &= ~TPM_GLOBAL_INT_ENABLE;
-	rc = tpm_tis_write32(priv, TPM_INT_ENABLE(priv->locality), intmask);
+	__tpm_tis_disable_interrupts(chip);
 
 	devm_free_irq(chip->dev.parent, priv->irq, chip);
 	priv->irq = 0;
-	chip->flags &= ~TPM_CHIP_FLAG_IRQ;
 }
 
 /*
@@ -753,6 +760,52 @@ static bool tpm_tis_req_canceled(struct tpm_chip *chip, u8 status)
 	return status == TPM_STS_COMMAND_READY;
 }
 
+static void tpm_tis_reenable_polling(struct tpm_chip *chip)
+{
+	struct tpm_tis_data *priv = dev_get_drvdata(&chip->dev);
+
+	dev_warn(&chip->dev, HW_ERR
+		 "TPM interrupt storm detected, polling instead\n");
+
+	__tpm_tis_disable_interrupts(chip);
+
+	/*
+	 * devm_free_irq() must not be called from within the interrupt handler,
+	 * since this function waits for running handlers to finish and thus it
+	 * would deadlock. Instead trigger a worker that takes care of the
+	 * unregistration.
+	 */
+	schedule_work(&priv->free_irq_work);
+}
+
+static irqreturn_t tpm_tis_check_for_interrupt_storm(struct tpm_chip *chip)
+{
+	struct tpm_tis_data *priv = dev_get_drvdata(&chip->dev);
+	const unsigned int MAX_UNHANDLED_IRQS = 1000;
+
+	/*
+	 * The worker to free the TPM interrupt (free_irq_work) may already
+	 * be scheduled, so make sure it is not scheduled again.
+	 */
+	if (!(chip->flags & TPM_CHIP_FLAG_IRQ))
+		return IRQ_HANDLED;
+
+	if (time_after(jiffies, priv->last_unhandled_irq + HZ/10))
+		priv->unhandled_irqs = 1;
+	else
+		priv->unhandled_irqs++;
+
+	priv->last_unhandled_irq = jiffies;
+
+	if (priv->unhandled_irqs > MAX_UNHANDLED_IRQS)
+		tpm_tis_reenable_polling(chip);
+	/*
+	 * Prevent the genirq code from starting its own interrupt storm
+	 * handling by always reporting that the interrupt was handled.
+	 */
+	return IRQ_HANDLED;
+}
+
 static irqreturn_t tis_int_handler(int dummy, void *dev_id)
 {
 	struct tpm_chip *chip = dev_id;
@@ -762,10 +815,12 @@ static irqreturn_t tis_int_handler(int dummy, void *dev_id)
 
 	rc = tpm_tis_read32(priv, TPM_INT_STATUS(priv->locality), &interrupt);
 	if (rc < 0)
-		return IRQ_NONE;
+		goto unhandled;
 
-	if (interrupt == 0)
-		return IRQ_NONE;
+	if (interrupt == 0) {
+		rc = -1;
+		goto unhandled;
+	}
 
 	set_bit(TPM_TIS_IRQ_TESTED, &priv->flags);
 	if (interrupt & TPM_INTF_DATA_AVAIL_INT)
@@ -780,8 +835,9 @@ static irqreturn_t tis_int_handler(int dummy, void *dev_id)
 	tpm_tis_request_locality(chip, 0);
 	rc = tpm_tis_write32(priv, TPM_INT_STATUS(priv->locality), interrupt);
 	tpm_tis_relinquish_locality(chip, 0);
+unhandled:
 	if (rc < 0)
-		return IRQ_NONE;
+		return tpm_tis_check_for_interrupt_storm(chip);
 
 	tpm_tis_read32(priv, TPM_INT_STATUS(priv->locality), &interrupt);
 	return IRQ_HANDLED;
@@ -805,6 +861,15 @@ static void tpm_tis_gen_interrupt(struct tpm_chip *chip)
 		chip->flags &= ~TPM_CHIP_FLAG_IRQ;
 }
 
+static void tpm_tis_free_irq_func(struct work_struct *work)
+{
+	struct tpm_tis_data *priv = container_of(work, typeof(*priv), free_irq_work);
+	struct tpm_chip *chip = priv->chip;
+
+	devm_free_irq(chip->dev.parent, priv->irq, chip);
+	priv->irq = 0;
+}
+
 /* Register the IRQ and issue a command that will cause an interrupt. If an
  * irq is seen then leave the chip setup for IRQ operation, otherwise reverse
  * everything and leave in polling mode. Returns 0 on success.
@@ -817,6 +882,7 @@ static int tpm_tis_probe_irq_single(struct tpm_chip *chip, u32 intmask,
 	int rc;
 	u32 int_status;
 
+	INIT_WORK(&priv->free_irq_work, tpm_tis_free_irq_func);
 
 	rc = devm_request_threaded_irq(chip->dev.parent, irq, NULL,
 				       tis_int_handler, IRQF_ONESHOT | flags,
@@ -919,6 +985,7 @@ void tpm_tis_remove(struct tpm_chip *chip)
 		interrupt = 0;
 
 	tpm_tis_write32(priv, reg, ~TPM_GLOBAL_INT_ENABLE & interrupt);
+	flush_work(&priv->free_irq_work);
 
 	tpm_tis_clkrun_enable(chip, false);
 
@@ -1023,6 +1090,7 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	chip->timeout_b = msecs_to_jiffies(TIS_TIMEOUT_B_MAX);
 	chip->timeout_c = msecs_to_jiffies(TIS_TIMEOUT_C_MAX);
 	chip->timeout_d = msecs_to_jiffies(TIS_TIMEOUT_D_MAX);
+	priv->chip = chip;
 	priv->timeout_min = TPM_TIMEOUT_USECS_MIN;
 	priv->timeout_max = TPM_TIMEOUT_USECS_MAX;
 	priv->phy_ops = phy_ops;
