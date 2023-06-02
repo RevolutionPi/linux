@@ -25,6 +25,8 @@
 
 	fragment@8 {
 		target = <&spi0>;
+		status = "disabled";
+
 		__overlay__ {
 			/delete-node/ ethernet@0;
 			/delete-node/ ethernet@1;
