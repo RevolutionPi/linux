@@ -22,8 +22,8 @@
 				connect-gpios = <&gpio 6 GPIO_ACTIVE_HIGH>,
 						<&gpio 16 GPIO_ACTIVE_HIGH>;
 
-				left-sniff-gpios = <&expander_core 9 GPIO_ACTIVE_HIGH>,
-						   <&expander_core 8 GPIO_ACTIVE_HIGH>;
+				left-sniff-gpios = <&expander_core 8 GPIO_ACTIVE_HIGH>,
+						   <&expander_core 9 GPIO_ACTIVE_HIGH>;
 				right-sniff-gpios = <&expander_core 12 GPIO_ACTIVE_HIGH>,
 						   <&expander_core 11 GPIO_ACTIVE_HIGH>;
 			};
