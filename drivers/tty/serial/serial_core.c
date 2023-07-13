@@ -1392,7 +1392,6 @@ static int uart_rs485_config(struct uart_port *port)
 	int ret;
 
 	uart_sanitize_serial_rs485(port, rs485);
-	uart_set_rs485_termination(port, rs485);
 
 	ret = port->rs485_config(port, NULL, rs485);
 	if (ret)
@@ -2455,9 +2454,13 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 				if (!(uport->rs485.flags & SER_RS485_ENABLED))
 					ops->set_mctrl(uport, uport->mctrl);
 				else
-					uart_rs485_config(uport);
+					ret = uart_rs485_config(uport);
 				ops->start_tx(uport);
 				spin_unlock_irq(&uport->lock);
+				if (!ret)
+					uart_set_rs485_termination(uport,
+						&uport->rs485);
+
 				tty_port_set_initialized(port, 1);
 			} else {
 				/*
@@ -2549,6 +2552,7 @@ uart_configure_port(struct uart_driver *drv, struct uart_state *state,
 
 	if (port->type != PORT_UNKNOWN) {
 		unsigned long flags;
+		int ret;
 
 		uart_report_port(drv, port);
 
@@ -2565,8 +2569,10 @@ uart_configure_port(struct uart_driver *drv, struct uart_state *state,
 		if (!(port->rs485.flags & SER_RS485_ENABLED))
 			port->ops->set_mctrl(port, port->mctrl);
 		else
-			uart_rs485_config(port);
+			ret = uart_rs485_config(port);
 		spin_unlock_irqrestore(&port->lock, flags);
+		if (!ret)
+			uart_set_rs485_termination(port, &port->rs485);
 
 		/*
 		 * If this driver supports console, and it hasn't been
