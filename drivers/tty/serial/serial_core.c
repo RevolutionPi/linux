@@ -1392,7 +1392,6 @@ static int uart_rs485_config(struct uart_port *port)
 	int ret;
 
 	uart_sanitize_serial_rs485(port, rs485);
-	uart_set_rs485_termination(port, rs485);
 
 	ret = port->rs485_config(port, NULL, rs485);
 	if (ret)
@@ -2457,6 +2456,9 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 			if (ret == 0) {
 				if (tty)
 					uart_change_speed(tty, state, NULL);
+
+				uart_set_rs485_termination(uport,
+					&uport->rs485);
 				spin_lock_irq(&uport->lock);
 				if (!(uport->rs485.flags & SER_RS485_ENABLED))
 					ops->set_mctrl(uport, uport->mctrl);
@@ -2560,6 +2562,7 @@ uart_configure_port(struct uart_driver *drv, struct uart_state *state,
 
 		/* Power up port for set_mctrl() */
 		uart_change_pm(state, UART_PM_STATE_ON);
+		uart_set_rs485_termination(port, &port->rs485);
 
 		/*
 		 * Ensure that the modem control lines are de-activated.
