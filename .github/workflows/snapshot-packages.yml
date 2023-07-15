@@ -12,7 +12,7 @@ jobs:
     uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
     with:
       kernelbakery_branch: master
-      picontrol_branch: master
+      picontrol_branch: revpi-5.10
       build_commit: ${{ github.event.pull_request.head.sha }}
       arch: arm
   kernelbakery_snapshot_arm64:
@@ -23,7 +23,7 @@ jobs:
     uses:  RevolutionPi/ci-workflows/.github/workflows/kernel-snapshot.yml@main
     with:
       kernelbakery_branch: master
-      picontrol_branch: master
+      picontrol_branch: revpi-5.10
       build_commit: ${{ github.event.pull_request.head.sha }}
       arch: arm64
   # link_artifacts:
