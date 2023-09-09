@@ -1156,6 +1156,7 @@ int ks8851_probe_common(struct net_device *netdev, struct device *dev,
 	if (gpio_is_valid(gpio)) {
 		usleep_range(10000, 11000);
 		gpio_set_value(gpio, 1);
+		usleep_range(10000, 11000);
 	}
 
 	spin_lock_init(&ks->statelock);
