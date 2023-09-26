@@ -592,7 +592,8 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 	enum dma_transfer_direction direction,
 	struct bcm2835_cb_entry *cb,
 	struct scatterlist *sgl,
-	unsigned int sg_len)
+	unsigned int sg_len,
+	enum dma_slave_buswidth buswidth)
 {
 	size_t len, max_len;
 	unsigned int i;
@@ -607,7 +608,7 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 			for (addr = sg_dma_address(sgent),
 				     len = sg_dma_len(sgent);
 				     len > 0;
-			     addr += scb->len, len -= scb->len, cb++) {
+				     cb++) {
 				scb = (struct bcm2711_dma40_scb *)cb->cb;
 				if (direction == DMA_DEV_TO_MEM) {
 					scb->dst = lower_32_bits(addr);
@@ -617,18 +618,46 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 					scb->srci = upper_32_bits(addr) | BCM2711_DMA40_INC;
 				}
 				scb->len = min(len, max_len);
+
+				addr += scb->len;
+				len -= scb->len;
+
+				/* Setup 2D X-Y len*/
+				scb->len /= buswidth;
+				scb->len--;
+				scb->len = BCM2711_DMA40_STRIDE(scb->len);
+				scb->len |= buswidth;
 			}
 		} else {
 			for (addr = sg_dma_address(sgent),
 				     len = sg_dma_len(sgent);
 			     len > 0;
-			     addr += cb->cb->length, len -= cb->cb->length,
 			     cb++) {
 				if (direction == DMA_DEV_TO_MEM)
 					cb->cb->dst = addr;
 				else
 					cb->cb->src = addr;
 				cb->cb->length = min(len, max_len);
+
+				addr += cb->cb->length;
+				len -= cb->cb->length;
+
+				if (!c->is_lite_channel) {
+					/* Setup 2D X-Y len*/
+					cb->cb->length /= buswidth;
+					cb->cb->length--;
+					cb->cb->length <<= 16;
+					cb->cb->length |= buswidth;
+				}
+
+				trace_printk("DMA: DUMP CB\n");
+				trace_printk("DMA: CB INFO: 0x%08x\n", cb->cb->info);
+				trace_printk("DMA: CB src: 0x%08x\n", cb->cb->src);
+				trace_printk("DMA: CB dst: 0x%08x\n", cb->cb->dst);
+				trace_printk("DMA: CB length: 0x%08x\n", cb->cb->length);
+				trace_printk("DMA: CB stride: 0x%08x\n", cb->cb->stride);
+				trace_printk("DMA: CB next: 0x%08x\n", cb->cb->next);
+				trace_printk("DMA: DUMP CB END\n");
 			}
 		}
 	}
@@ -897,6 +926,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 		   WIDE_SOURCE(c->dreq) | WIDE_DEST(c->dreq);
 	u32 extra = BCM2835_DMA_INT_EN;
 	size_t frames;
+	enum dma_slave_buswidth buswidth;
 
 	if (!is_slave_direction(direction)) {
 		dev_err(chan->device->dev,
@@ -910,6 +940,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 	if (direction == DMA_DEV_TO_MEM) {
 		if (c->cfg.src_addr_width != DMA_SLAVE_BUSWIDTH_4_BYTES)
 			return NULL;
+		buswidth = c->cfg.src_addr_width;
 		src = c->cfg.src_addr;
 		/*
 		 * One would think it ought to be possible to get the physical
@@ -921,8 +952,13 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 		    src |= 0x400000000ull;
 		info |= BCM2835_DMA_S_DREQ | BCM2835_DMA_D_INC;
 	} else {
-		if (c->cfg.dst_addr_width != DMA_SLAVE_BUSWIDTH_4_BYTES)
-			return NULL;
+		if (c->cfg.dst_addr_width != DMA_SLAVE_BUSWIDTH_4_BYTES) {
+			if (c->is_lite_channel)
+				return NULL;
+			if (c->cfg.dst_addr_width != DMA_SLAVE_BUSWIDTH_1_BYTE)
+				return NULL;
+		}
+		buswidth = c->cfg.dst_addr_width;
 		dst = c->cfg.dst_addr;
 		if (c->is_40bit_channel)
 		    dst |= 0x400000000ull;
@@ -931,6 +967,10 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 
 	/* count frames in sg list */
 	frames = bcm2835_dma_count_frames_for_sg(c, sgl, sg_len);
+
+	/* Set 2D mode for all but lite channels */
+	if (!c->is_lite_channel)
+		info |= BCM2835_DMA_TDMODE;
 
 	/* allocate the CB chain */
 	d = bcm2835_dma_create_cb_chain(c, direction, false,
@@ -942,7 +982,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 
 	/* fill in frames with scatterlist pointers */
 	bcm2835_dma_fill_cb_chain_with_sg(c, direction, d->cb_list,
-					  sgl, sg_len);
+					  sgl, sg_len, buswidth);
 
 	return vchan_tx_prep(&c->vc, &d->vd, flags);
 }
@@ -1261,7 +1301,9 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	od->ddev.device_terminate_all = bcm2835_dma_terminate_all;
 	od->ddev.device_synchronize = bcm2835_dma_synchronize;
 	od->ddev.src_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
-	od->ddev.dst_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
+	/* TODO: support further byte widths */
+	od->ddev.dst_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_1_BYTE) |
+				   BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
 	od->ddev.directions = BIT(DMA_DEV_TO_MEM) | BIT(DMA_MEM_TO_DEV) |
 			      BIT(DMA_MEM_TO_MEM);
 	od->ddev.residue_granularity = DMA_RESIDUE_GRANULARITY_BURST;

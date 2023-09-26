@@ -366,10 +366,12 @@
 	fragment@8 {
 		target = <&uart3>;
 		__overlay__ {
-			linux,rs485-enabled-at-boot-time;
-			rs485-rts-active-low;
+			dmas = <&dma 19>;
+			dma-names = "tx";
 			pinctrl-names = "default";
 			pinctrl-0 = <&rs485_0_pins>;
+			linux,rs485-enabled-at-boot-time;
+			rs485-rts-active-low;
 			rs485-term-gpios = <&expander 14 GPIO_ACTIVE_LOW>;
 			status = "okay";
 		};
