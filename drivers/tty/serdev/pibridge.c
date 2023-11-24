@@ -151,7 +151,7 @@ static void pibridge_remove(struct serdev_device *serdev)
 
 /*****************/
 
-int pibridge_send(void *buf, u8 len)
+int pibridge_send(void *buf, u32 len)
 {
 	struct pibridge *pi = pibridge_s;
 	struct serdev_device *serdev = pi->serdev;
