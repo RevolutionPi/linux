@@ -143,7 +143,13 @@ install_libc_headers () {
 
 package=$1
 
+_sourcename=$(dpkg-parsechangelog -SSource)
+meta_pkg_append=${_sourcename#linux}
+
 case "${package}" in
+linux-image"$meta_pkg_append")
+	# Nothing to install for the meta packages
+	;;
 *-dbg)
 	install_linux_image_dbg "${package}";;
 linux-image-*|user-mode-linux-*)

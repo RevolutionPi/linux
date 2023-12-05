@@ -186,6 +186,8 @@ $sourcename ($packageversion) $distribution; urgency=low
  -- $maintainer  $(date -R)
 EOF
 
+meta_pkg_append=${sourcename#linux}
+
 # Generate a control file
 cat <<EOF > debian/control
 Source: $sourcename
@@ -202,6 +204,17 @@ Architecture: $debarch
 Description: Linux kernel, version $version
  This package contains the Linux kernel, modules and corresponding other
  files, version: $version.
+EOF
+
+cat <<EOF >> debian/control
+
+Package: linux-image$meta_pkg_append
+Section: kernel
+Provides: linux-image-generic, wireguard-modules (= 1.0.0)
+Depends: $packagename-$version (= $packageversion)
+Architecture: $debarch
+Description: This package depends on the latest Linux kernel and modules for use on
+ Revolution Pi devices.
 EOF
 
 if [ "${SRCARCH}" != um ]; then
