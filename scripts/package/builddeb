@@ -147,7 +147,7 @@ _sourcename=$(dpkg-parsechangelog -SSource)
 meta_pkg_append=${_sourcename#linux}
 
 case "${package}" in
-linux-image"$meta_pkg_append")
+linux-image"$meta_pkg_append" | linux-headers"$meta_pkg_append")
 	# Nothing to install for the meta packages
 	;;
 *-dbg)

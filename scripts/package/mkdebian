@@ -241,6 +241,19 @@ Description: Linux kernel headers for $version on $debarch
  This is useful for people who need to build external modules
 EOF
 fi
+
+cat <<EOF >> debian/control
+
+Package: linux-headers$meta_pkg_append
+Architecture: $debarch
+Provides: linux-headers-generic
+Depends: linux-headers-$version (= $packageversion)
+Description: Linux kernel headers for Revolution Pi devices
+ This package depends on the architecture-specific header files for the
+ latest Linux kernel $debarch configuration.
+ .
+ This is useful for people who need to build external modules
+EOF
 fi
 
 if is_enabled CONFIG_DEBUG_INFO; then
