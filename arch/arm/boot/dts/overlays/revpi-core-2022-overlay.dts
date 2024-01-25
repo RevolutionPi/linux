@@ -56,7 +56,7 @@
 				interrupt-parent = <&gpio>;
 				#interrupt-cells = <2>;
 				interrupts = <13 IRQ_TYPE_LEVEL_LOW>;
-				reset-gpios = <&gpio 21 GPIO_ACTIVE_HIGH>;
+				reset-gpios = <&gpio 21 GPIO_ACTIVE_LOW>;
 				status = "okay";
 			};
 
@@ -70,7 +70,7 @@
 				interrupt-parent = <&gpio>;
 				#interrupt-cells = <2>;
 				interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
-				reset-gpios = <&gpio 20 GPIO_ACTIVE_HIGH>;
+				reset-gpios = <&gpio 20 GPIO_ACTIVE_LOW>;
 				status = "okay";
 			};
 		};
