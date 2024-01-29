@@ -450,5 +450,6 @@
 
 	__overrides__ {
 		bootargs = <&chosen_overlay>,"bootargs";
+		dsa = <&ksz8795>,"status=okay";
 	};
 };
