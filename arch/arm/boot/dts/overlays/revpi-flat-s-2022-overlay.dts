@@ -194,6 +194,11 @@
 				brcm,function = <BCM2835_FSEL_ALT3>;
 				brcm,pull = <BCM2835_PUD_OFF>;
 			};
+			switch_irq_pins: test_pins {
+				brcm,pins     = <44>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull     = <BCM2835_PUD_OFF>;
+			};
 
 		};
 	};
@@ -251,9 +256,13 @@
 			ksz8795: switch@1 {
 				// TODO: use DSA?
 				compatible = "microchip,ksz8795";
+				pinctrl-names = "default";
+				pinctrl-0 = <&switch_irq_pins>;
 				// NOTE: reduce this if device is not working properly
 				spi-max-frequency = <20000000>;
 				reg = <1>;
+				spi-cpha;
+				spi-cpol;
 				interrupt-parent = <&gpio>;
 				#interrupt-cells = <2>;
 				interrupts = <44 IRQ_TYPE_LEVEL_LOW>;
@@ -325,8 +334,8 @@
 				};
 
 				eth1: ethernet@4 {
-					/* SMSC LAN9500, attached to KSZ8795 */
-					compatible = "usb424,9500";
+					/* Microchip Technology LAN7801 attached to KSZ8795 */
+					compatible = "usb424,7801";
 					reg = <4>;
 				};
 			};
