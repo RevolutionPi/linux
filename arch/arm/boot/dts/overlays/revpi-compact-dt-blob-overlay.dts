@@ -1350,6 +1350,7 @@
             pin@p39 { function = "output"; termination = "no_pulling"; polarity = "active_low"; startup_state = "inactive"; }; // RevPi Compact UART0 TERM
             pin@p42 { function = "spi2"; termination = "no_pulling"; drive_strength_mA = < 8 >; }; // RevPi Compact SPI2 CLK
             pin@p44 { function = "output"; termination = "no_pulling"; polarity = "active_low"; }; // RevPi Compact AIN CS
+            pin@p45 { function = "output"; termination = "no_pulling"; polarity = "active_low"; }; // RevPi Compact DOUT CS
          }; // pin_config
 
          pin_defines {
