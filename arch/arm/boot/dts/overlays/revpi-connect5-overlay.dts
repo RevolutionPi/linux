@@ -13,4 +13,72 @@
 			compatible = "kunbus,revpi-connect5", "brcm,bcm2712";
 		};
 	};
+
+	/* GPIOS/PINMUX */
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio-line-names =
+				"ID_SDA", // GPIO0
+				"ID_SCL", // GPIO1
+				"I2C1_SDA", // GPIO2
+				"I2C1_SCL", // GPIO3
+				"UART2_TX", // GPIO4
+				"UART2_RX", // GPIO5
+				"-", // GPIO6
+				"UART2_RTS", // GPIO7
+				"INT_IOEX_CORE", // GPIO8
+				"INT_IOX_POWER", // GPIO9
+				"INT_TPM", // GPIO10
+				"SPI1_CS1", // GPIO11
+				"UART4_TX", // GPIO12
+				"UART4_RX", // GPIO13
+				"-", // GPIO14
+				"UART4_RTS", // GPIO15
+				"-", // GPIO16
+				"ID_WP", // GPIO17
+				"SPI1_CS0", // GPIO18
+				"SPI1_MISO", // GPIO19
+				"SPI1_MOSI", // GPIO20
+				"SPI1_CLK", // GPIO21
+				"-", // GPIO22
+				"-", // GPIO23
+				"-", // GPIO24
+				"-", // GPIO25
+				"-", // GPIO26
+				"-", // GPIO27
+
+				/*
+				 * GPIO line names >= 28 are taken from
+				 * arch/arm64/boot/dts/broadcom/bcm2712-rpi-cm5.dtsi
+				 */
+				"PCIE_PWR_EN", // GPIO28
+				"FAN_TACH", // GPIO29
+				"HOST_SDA", // GPIO30
+				"HOST_SCL", // GPIO31
+				"ETH_RST_N", // GPIO32
+				"PCIE_DET_WAKE", // GPIO33
+
+				"CD0_IO0_MICCLK", // GPIO34
+				"CD0_IO0_MICDAT0", // GPIO35
+				"RP1_PCIE_CLKREQ_N", // GPIO36
+				"ETH_IRQ_N", // GPIO37
+				"SDA0", // GPIO38
+				"SCL0", // GPIO39
+				"-", // GPIO40
+				"-", // GPIO41
+				"USB_VBUS_EN", // GPIO42
+				"USB_OC_N", // GPIO43
+				"RP1_STAT_LED", // GPIO44
+				"FAN_PWM", // GPIO45
+				"-", // GPIO46
+				"2712_WAKE", // GPIO47
+				"-", // GPIO48
+				"-", // GPIO49
+				"-", // GPIO50
+				"-", // GPIO51
+				"-", // GPIO52
+				"-"; // GPIO53
+		};
+	};
 };
