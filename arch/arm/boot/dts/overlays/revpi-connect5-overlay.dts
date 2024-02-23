@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0
+// SPDX-FileCopyrightText: Copyright 2024 KUNBUS GmbH
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-connect5", "brcm,bcm2712";
+		};
+	};
+};
