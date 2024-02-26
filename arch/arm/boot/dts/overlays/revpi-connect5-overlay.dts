@@ -95,6 +95,12 @@
 				pins = "gpio8";
 				bias-disable;
 			};
+			exp_power_pins: exp_power_pins {
+				/* IRQ */
+				function = "gpio";
+				pins = "gpio9";
+				bias-disable;
+			};
 		};
 	};
 
@@ -106,6 +112,39 @@
 			pinctrl-0 = <&con5_i2c1_pins>;
 			clock-frequency = <400000>;
 			status = "okay";
+
+			exp_gpio_power: gpio@21 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcal6416";
+				pinctrl-names = "default";
+				pinctrl-0 = <&exp_power_pins>;
+				reg = <0x21>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+				gpio-line-names =
+					"LED_A3_RD", // GPIO0 / P0_0
+					"LED_A3_GN", // GPIO1 / P0_1
+					"LED_A3_BL", // GPIO2 / P0_2
+					"PB_R_MPX_S", // GPIO3 / P0_3
+					"RS485_TERM", // GPIO4 / P0_4
+					"PB_R_DETECT", // GPIO5 / P0_5
+					"PB_R_ETH_RST", // GPIO6 / P0_6
+					"-", // GPIO7 / P0_7
+					"LED_A4_RD", // GPIO8 / P1_0
+					"LED_A4_GN", // GPIO9 / P1_1
+					"LED_A4_BL", // GPIO10 / P1_2
+					"LED_A5_RD", // GPIO11 / P1_3
+					"LED_A5_GN", // GPIO12 / P1_4
+					"LED_A5_BL", // GPIO13 / P1_5
+					"PB_R_SNIFF", // GPIO14 / P1_6
+					"PB_R_ACK"; // GPIO15 / P1_7
+
+			};
 
 			exp_gpio_core: gpio@22 {
 				/* 100kHz, 400kHz */
