@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
 // SPDX-FileCopyrightText: Copyright 2024 KUNBUS GmbH
 
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
 /dts-v1/;
 /plugin/;
 
@@ -86,6 +89,12 @@
 				pins = "gpio2", "gpio3";
 				bias-disable;
 			};
+			exp_core_pins: exp_core_pins {
+				/* IRQ */
+				function = "gpio";
+				pins = "gpio8";
+				bias-disable;
+			};
 		};
 	};
 
@@ -97,6 +106,45 @@
 			pinctrl-0 = <&con5_i2c1_pins>;
 			clock-frequency = <400000>;
 			status = "okay";
+
+			exp_gpio_core: gpio@22 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcal6524";
+				pinctrl-names = "default";
+				pinctrl-0 = <&exp_core_pins>;
+				reg = <0x22>;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <8 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+				gpio-line-names =
+					"LEDS_PWRRED", // GPIO0 / P0_0
+					"LEDS_A1RED", // GPIO1 / P0_1
+					"LEDS_A1GRN", // GPIO2 / P0_2
+					"LEDS_A1BLUE", // GPIO3 / P0_3
+					"LEDS_A2RED", // GPIO4 / P0_4
+					"LEDS_A2GRN", // GPIO5 / P0_5
+					"LEDS_A2BLUE", // GPIO6 / P0_6
+					"PWRBLUE", // GPIO7 / P0_7
+					"PB_L_SNIFF", // GPIO8 / P1_0
+					"PB_L_ACK", // GPIO9 / P1_1
+					"PB_L_MPX_S", // GPIO10 / P1_2
+					"PB_TERM", // GPIO11 / P1_3
+					"-", // GPIO12 / P1_4
+					"-", // GPIO13 / P1_5
+					"-", // GPIO14 / P1_6
+					"PB_L_DETECT", // GPI15 / P1_7
+					"-", // GPIO16 / P2_0
+					"-", // GPIO17 / P2_1
+					"USB_OCI1", // GPIO18 / P2_2
+					"USB_OCI2", // GPIO19 / P2_3
+					"ETHB_RST", // GPIO20 / P2_4
+					"PBETH_L_RST", // GPIO21 / P2_5
+					"-", // GPIO22 / P2_6
+					"PG_1V05"; // GPIO23 / P2_7
+			};
 		};
 	};
 };
