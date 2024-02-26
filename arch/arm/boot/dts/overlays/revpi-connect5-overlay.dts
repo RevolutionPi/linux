@@ -268,6 +268,14 @@
 					"-", // GPIO22 / P2_6
 					"PG_1V05"; // GPIO23 / P2_7
 			};
+
+			rtc: rtc@53 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcf2131";
+				reg = <0x53>;
+				reset-source;
+				status = "okay";
+			};
 		};
 	};
 };
