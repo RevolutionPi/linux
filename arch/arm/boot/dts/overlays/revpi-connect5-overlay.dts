@@ -14,6 +14,90 @@
 		target-path = "/";
 		__overlay__ {
 			compatible = "kunbus,revpi-connect5", "brcm,bcm2712";
+
+			leds {
+				compatible = "gpio-leds";
+				power_red {
+					label = "power:1:fault";
+					gpios = <&exp_gpio_core 0 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "power_red";
+				};
+				a1_red {
+					label = "a1:red:status";
+					gpios = <&exp_gpio_core 1 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_red";
+				};
+				a1_green {
+					label = "a1:green:status";
+					gpios = <&exp_gpio_core 2 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_green";
+				};
+				a1_blue {
+					label = "a1:blue:status";
+					gpios = <&exp_gpio_core 3 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_blue";
+				};
+				a2_red {
+					label = "a2:red:status";
+					gpios = <&exp_gpio_core 4 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_red";
+				};
+				a2_green {
+					label = "a2:green:status";
+					gpios = <&exp_gpio_core 5 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_green";
+				};
+				a2_blue {
+					label = "a2:blue:status";
+					gpios = <&exp_gpio_core 6 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_blue";
+				};
+				a3_red {
+					label = "a3:red:status";
+					gpios = <&exp_gpio_power 0 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_red";
+				};
+				a3_green {
+					label = "a3:green:status";
+					gpios = <&exp_gpio_power 1 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_green";
+				};
+				a3_blue {
+					label = "a3:blue:status";
+					gpios = <&exp_gpio_power 2 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_blue";
+				};
+				a4_red {
+					label = "a4:red:status";
+					gpios = <&exp_gpio_power 8 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_red";
+				};
+				a4_green {
+					label = "a4:green:status";
+					gpios = <&exp_gpio_power 9 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_green";
+				};
+				a4_blue {
+					label = "a4:blue:status";
+					gpios = <&exp_gpio_power 10 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_blue";
+				};
+				a5_red {
+					label = "a5:red:status";
+					gpios = <&exp_gpio_power 11 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_red";
+				};
+				a5_green {
+					label = "a5:green:status";
+					gpios = <&exp_gpio_power 12 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_green";
+				};
+				a5_blue {
+					label = "a5:blue:status";
+					gpios = <&exp_gpio_power 13 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_blue";
+				};
+			};
 		};
 	};
 
