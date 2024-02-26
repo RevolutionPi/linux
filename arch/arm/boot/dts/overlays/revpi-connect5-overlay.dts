@@ -98,6 +98,17 @@
 					linux,default-trigger = "a5_blue";
 				};
 			};
+
+			pibridge {
+				compatible = "kunbus,pibridge";
+
+				/* Sniff pins 1A and 2A */
+				left-sniff-gpios = <&exp_gpio_core 8 GPIO_ACTIVE_HIGH>,
+						   <&exp_gpio_core 9 GPIO_ACTIVE_HIGH>;
+				/* Sniff pins 1B and 2B */
+				right-sniff-gpios = <&exp_gpio_power 14 GPIO_ACTIVE_HIGH>,
+						   <&exp_gpio_power 15 GPIO_ACTIVE_HIGH>;
+			};
 		};
 	};
 
@@ -196,6 +207,12 @@
 				function = "gpio";
 				pins = "gpio9";
 				bias-disable;
+			};
+			pb_uart_pins: pb_uart_pins {
+				/* TX, RX, TX_EN */
+				function = "uart2";
+				pins = "gpio4", "gpio5", "gpio7";
+				bias-disabled;
 			};
 			tpm_pins: tpm_pins {
 				/* IRQ */
@@ -323,6 +340,22 @@
 				#interrupt-cells = <2>;
 				interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
 				status = "okay";
+			};
+		};
+	};
+
+	/* UART2 (PB_SERIAL) */
+	fragment@5 {
+		target = <&uart2>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pb_uart_pins>;
+			linux,rs485-enabled-at-boot-time;
+			rs485-term-gpios = <&exp_gpio_core 11 GPIO_ACTIVE_HIGH>;
+			status = "okay";
+
+			pi_bridge {
+				compatible = "kunbus,pi-bridge";
 			};
 		};
 	};
