@@ -79,6 +79,24 @@
 				"-", // GPIO51
 				"-", // GPIO52
 				"-"; // GPIO53
+
+			con5_i2c1_pins: con5_i2c1_pins {
+				/* SDA, SCL */
+				function = "i2c1";
+				pins = "gpio2", "gpio3";
+				bias-disable;
+			};
+		};
+	};
+
+	/* I2C1 */
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&con5_i2c1_pins>;
+			clock-frequency = <400000>;
+			status = "okay";
 		};
 	};
 };
