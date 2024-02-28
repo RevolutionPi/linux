@@ -214,6 +214,12 @@
 				pins = "gpio4", "gpio5", "gpio7";
 				bias-disabled;
 			};
+			rs485_uart_pins: rs485_uart_pins {
+				/* TX RX TX_EN */
+				function = "uart4";
+				pins = "gpio12", "gpio13", "gpio15";
+				bias-disabled;
+			};
 			tpm_pins: tpm_pins {
 				/* IRQ */
 				function = "gpio";
@@ -357,6 +363,19 @@
 			pi_bridge {
 				compatible = "kunbus,pi-bridge";
 			};
+		};
+	};
+
+	/* UART4 (RS485)*/
+	fragment@6 {
+		target = <&uart4>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rs485_uart_pins>;
+			linux,rs485-enabled-at-boot-time;
+			rs485-rts-active-low;
+			rs485-term-gpios = <&exp_gpio_power 4 GPIO_ACTIVE_LOW>;
+			status = "okay";
 		};
 	};
 };
