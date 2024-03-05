@@ -33,6 +33,12 @@ install_linux_image () {
 		${MAKE} -f ${srctree}/Makefile INSTALL_DTBS_PATH="${pdir}/usr/lib/linux-image-${KERNELRELEASE}" dtbs_install
 	fi
 
+	# Make sure this README is where it should be for raspi-firmware to find it
+	# for its postinst script.
+	# Not having this will fail installing the kernel.
+	mkdir -p "${pdir}/usr/lib/${pname}/overlays"
+	cp "${srctree}/arch/${SRCARCH}/boot/dts/overlays/README" "${pdir}/usr/lib/${pname}/overlays/"
+
 	${MAKE} -f ${srctree}/Makefile INSTALL_MOD_PATH="${pdir}" INSTALL_MOD_STRIP=1 modules_install
 	rm -f "${pdir}/lib/modules/${KERNELRELEASE}/build"
 
