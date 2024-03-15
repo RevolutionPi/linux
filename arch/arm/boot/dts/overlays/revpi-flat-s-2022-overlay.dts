@@ -341,7 +341,7 @@
 				interrupt-parent = <&gpio>;
 				#interrupt-cells = <2>;
 				interrupts = <45 IRQ_TYPE_LEVEL_HIGH>;
-				status = "okay";
+				status = "disabled";
 			};
 		};
 	};
@@ -451,5 +451,6 @@
 	__overrides__ {
 		bootargs = <&chosen_overlay>,"bootargs";
 		dsa = <&ksz8795>,"status=okay";
+		mbus = <&mbus>,"status=okay";
 	};
 };
