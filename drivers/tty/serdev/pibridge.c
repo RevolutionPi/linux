@@ -125,12 +125,19 @@ static int pibridge_probe(struct serdev_device *serdev)
 		return ret;
 
 	ret = serdev_device_open(serdev);
-	if (ret)
+	if (ret) {
+		dev_err(&serdev->dev, "failed to open serdev: %i\n", ret);
 		goto err_kfifo_free;
+	}
 
 	ret = pibridge_set_serial(serdev);
-	if (ret)
+	if (ret) {
+		dev_err(&serdev->dev,
+			"failed to set serial parameters: %i\n", ret);
 		goto err_serdev_close;
+	}
+
+	dev_info(&serdev->dev, "pibridge initialized\n");
 
 	return 0;
 
@@ -138,6 +145,9 @@ err_serdev_close:
 	serdev_device_close(serdev);
 err_kfifo_free:
 	kfifo_free(&pi->read_fifo);
+
+	dev_err(&serdev->dev, "failed to initialize pibridge\n");
+
 	return ret;
 }
 
