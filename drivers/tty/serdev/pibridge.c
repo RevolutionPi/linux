@@ -321,7 +321,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
-		return -EBADMSG;
+		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
 	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
@@ -473,7 +473,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		dev_warn_ratelimited(&pibridge_s->serdev->dev,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
-		return -EBADMSG;
+		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
 	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
