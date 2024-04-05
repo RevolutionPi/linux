@@ -347,10 +347,15 @@
 	};
 
 	fragment@5 {
-		target = <&xhci>;
+		target = <&usb>;
 		#address-cells = <1>;
 		#size-cells = <1>;
-		xhci_usb: __overlay__ {
+		dwc2_usb: __overlay__ {
+			compatible = "brcm,bcm2835-usb";
+			dr_mode = "host";
+			g-np-tx-fifo-size = <32>;
+			g-rx-fifo-size = <558>;
+			g-tx-fifo-size = <512 512 512 512 512 256 256>;
 			status = "okay";
 
 			hub@1 {
