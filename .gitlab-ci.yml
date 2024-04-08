@@ -4,3 +4,30 @@ include:
     file: "base.yml"
   - project: "revolutionpi/infrastructure/ci-templates"
     file: "kernel-devel-package.yml"
+      
+checkpatch:
+  stage: test
+  image: debian:bookworm-slim
+  tags:
+    - self-hosted
+    - host-arm64
+  before_script:
+    # install dependencies
+    - apt-get update
+    - apt-get install --no-install-recommends -y curl jq ca-certificates codespell libcolor-ansi-util-perl git
+  script:
+    # fetch commit list from gitlab API
+    - COMMITS=$(curl -sL "http://gitlab.com/api/v4/projects/$CI_PROJECT_ID/merge_requests/${CI_MERGE_REQUEST_IID}/commits"  | jq -r '.[].id')
+    # run checkpatch on each commit
+    - RC=0
+    - >
+      for commit in $COMMITS; do
+        echo -e "\e[0Ksection_start:`date +%s`:${commit}\r\e[0KCOMMIT ${commit}"
+        ./scripts/checkpatch.pl --ignore FILE_PATH_CHANGES --color=never --codespell --git "${commit}" || RC=1
+        echo -e "\e[0Ksection_end:`date +%s`:${commit}\r\e[0K"
+      done
+    # let job fail, if at least one commit has errors
+    - exit $RC
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: true
