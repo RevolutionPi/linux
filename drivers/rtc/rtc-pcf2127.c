@@ -1031,7 +1031,7 @@ static struct pcf21xx_config pcf21xx_cfg[] = {
 /*
  * Enable timestamp function and corresponding interrupt(s).
  */
-static int pcf2127_enable_ts(struct device *dev, int ts_id)
+static int pcf2127_enable_ts(struct device *dev, int ts_id, bool ts_off)
 {
 	struct pcf2127 *pcf2127 = dev_get_drvdata(dev);
 	int ret;
@@ -1047,6 +1047,7 @@ static int pcf2127_enable_ts(struct device *dev, int ts_id)
 				 pcf2127->cfg->ts[ts_id].reg_base,
 				 PCF2127_BIT_TS_CTRL_TSOFF |
 				 PCF2127_BIT_TS_CTRL_TSM,
+				 ts_off ? PCF2127_BIT_TS_CTRL_TSOFF : 0 |
 				 PCF2127_BIT_TS_CTRL_TSM);
 	if (ret) {
 		dev_err(dev, "%s: tamper detection config (ts%d_ctrl) failed\n",
@@ -1060,7 +1061,7 @@ static int pcf2127_enable_ts(struct device *dev, int ts_id)
 	 * unused.
 	 */
 	ret = regmap_update_bits(pcf2127->regmap, pcf2127->cfg->ts[ts_id].ie_reg,
-				 pcf2127->cfg->ts[ts_id].ie_bit,
+				 ts_off ? 0 : pcf2127->cfg->ts[ts_id].ie_bit,
 				 pcf2127->cfg->ts[ts_id].ie_bit);
 	if (ret) {
 		dev_err(dev, "%s: tamper detection TSIE%d config failed\n",
@@ -1097,6 +1098,7 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 			 int alarm_irq, const struct pcf21xx_config *config)
 {
 	struct pcf2127 *pcf2127;
+	bool ts_off = true;
 	int ret = 0;
 	unsigned int val;
 
@@ -1245,7 +1247,7 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 	 * Enable timestamp functions 1 to 4.
 	 */
 	for (int i = 0; i < pcf2127->cfg->ts_count; i++) {
-		ret = pcf2127_enable_ts(dev, i);
+		ret = pcf2127_enable_ts(dev, i, ts_off);
 		if (ret)
 			return ret;
 	}
