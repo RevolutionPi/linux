@@ -160,11 +160,9 @@ static void pibridge_remove(struct serdev_device *serdev)
 };
 
 /*****************/
-
 int pibridge_send(void *buf, u32 len)
 {
-	struct pibridge *pi = pibridge_s;
-	struct serdev_device *serdev = pi->serdev;
+	struct serdev_device *serdev = pibridge_s->serdev;
 	int ret;
 
 	trace_pibridge_send_begin(buf, len);
@@ -216,48 +214,44 @@ int pibridge_recv(void *buf, u8 len)
 }
 EXPORT_SYMBOL(pibridge_recv);
 
-int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 snd_len)
+int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 {
-	struct pibridge_pkthdr_gate pkthdr;
+	struct serdev_device *serdev = pibridge_s->serdev;
+	struct pibridge_pkthdr_gate *hdr;
+	size_t datagram_size;
+	void *datagram;
+	int ret = 0;
 	u8 crc;
 
-	memset(&pkthdr, 0, sizeof(pkthdr));
+	datagram_size = sizeof(*hdr) + buf_len + 1;
 
-	pkthdr.dst = dst;
-	pkthdr.cmd = cmd;
-	pkthdr.len = snd_len;
+	datagram = kmalloc(datagram_size, GFP_KERNEL);
+	if (!datagram)
+		return -ENOMEM;
 
-	trace_pibridge_send_gate_header(&pkthdr);
+	hdr = (struct pibridge_pkthdr_gate *) datagram;
+	hdr->dst = dst;
+	hdr->cmd = cmd;
+	hdr->len = buf_len;
 
-	if (pibridge_send(&pkthdr, sizeof(pkthdr)) < 0) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send head error in gate-send\n");
-		return -EIO;
-	}
-	if (snd_len != 0) {
-		trace_pibridge_send_gate_data(snd_buf, snd_len);
+	crc = pibridge_crc8(0, hdr, sizeof(*hdr));
 
-		if (pibridge_send(snd_buf, snd_len) < 0) {
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"send data error in gate-send(len: %d)\n", snd_len);
-			return -EIO;
-		}
-
+	if (buf_len) {
+		memcpy(datagram + sizeof(*hdr), snd_buf, buf_len);
+		crc = pibridge_crc8(crc, snd_buf, buf_len);
 	}
 
-	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
-	if (snd_len != 0)
-		crc = pibridge_crc8(crc, snd_buf, snd_len);
+	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
-	trace_pibridge_send_gate_crc(crc);
-
-	if (pibridge_send(&crc, sizeof(u8)) < 0) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send crc error in gate-send\n");
-		return -EIO;
+	if (pibridge_send(datagram, datagram_size) < 0) {
+		dev_warn_ratelimited(&serdev->dev,
+			"failed to send gate-datagram\n");
+		ret = -EIO;
 	}
 
-	return 0;
+	kfree(datagram);
+
+	return ret;
 }
 EXPORT_SYMBOL(pibridge_req_send_gate);
 
@@ -372,48 +366,46 @@ int pibridge_req_gate(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 }
 EXPORT_SYMBOL(pibridge_req_gate);
 
-int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len)
+int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 {
-	struct pibridge_pkthdr_io pkthdr;
+	struct serdev_device *serdev = pibridge_s->serdev;
+	struct pibridge_pkthdr_io *hdr;
+	size_t datagram_size;
+	void *datagram;
+	int ret = 0;
 	u8 crc;
 
-	memset(&pkthdr, 0, sizeof(pkthdr));
+	datagram_size = sizeof(*hdr) + buf_len + 1;
 
-	pkthdr.addr	= addr;
-	pkthdr.type	= (addr == 0x3f) ? 1 : 0; /* 0 for unicast, 1 for broadcast */
-	pkthdr.cmd	= cmd;
-	pkthdr.len	= snd_len;
+	datagram = kmalloc(datagram_size, GFP_KERNEL);
+	if (!datagram)
+		return -ENOMEM;
 
-	trace_pibridge_send_io_header(&pkthdr);
+	hdr = (struct pibridge_pkthdr_io *) datagram;
+	hdr->addr = addr;
+	hdr->type = (addr == 0x3f) ? 1 : 0; /* 0 for unicast, 1 for broadcast */
+	hdr->rsp = 0;
+	hdr->len = buf_len;
+	hdr->cmd = cmd;
 
-	if (pibridge_send(&pkthdr, sizeof(pkthdr)) < 0) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send head error in io-send(len: %zd)\n", sizeof(pkthdr));
-		return -EIO;
+	crc = pibridge_crc8(0, hdr, sizeof(*hdr));
+
+	if (buf_len) {
+		memcpy(datagram + sizeof(*hdr), snd_buf, buf_len);
+		crc = pibridge_crc8(crc, snd_buf, buf_len);
 	}
 
-	if (snd_len != 0) {
-		trace_pibridge_send_io_data(snd_buf, snd_len);
+	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
-		if (pibridge_send(snd_buf, snd_len) < 0) {
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
-				"send data error in io-send(len: %d)\n",
-				snd_len);
-			return -EIO;
-		}
-	}
-	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
-	crc = pibridge_crc8(crc, snd_buf, snd_len);
-
-	trace_pibridge_send_io_crc(crc);
-
-	if (pibridge_send(&crc, sizeof(u8)) < 0) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"send crc error in io-send\n");
-		return -EIO;
+	if (pibridge_send(datagram, datagram_size) < 0) {
+		dev_warn_ratelimited(&serdev->dev,
+			"failed to send io-datagram\n");
+		ret = -EIO;
 	}
 
-	return 0;
+	kfree(datagram);
+
+	return ret;
 }
 EXPORT_SYMBOL(pibridge_req_send_io);
 
