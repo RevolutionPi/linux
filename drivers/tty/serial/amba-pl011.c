@@ -41,6 +41,7 @@
 #include <linux/sizes.h>
 #include <linux/io.h>
 #include <linux/acpi.h>
+#include <linux/workqueue.h>
 
 #define UART_NR			14
 
@@ -276,6 +277,8 @@ struct uart_amba_port {
 	unsigned int		fifosize;	/* vendor-specific */
 	unsigned int		fixed_baud;	/* vendor-set fixed baud rate */
 	char			type[12];
+	struct work_struct      tx_work;
+	struct workqueue_struct *tx_wq;
 	bool			rs485_tx_started;
 	unsigned int		rs485_tx_drain_interval; /* usecs */
 #ifdef CONFIG_DMA_ENGINE
@@ -1356,6 +1359,15 @@ static void pl011_stop_tx(struct uart_port *port)
 
 static bool pl011_tx_chars(struct uart_amba_port *uap, bool from_irq);
 
+static void pl011_tx_work_func(struct work_struct *ws)
+{
+	struct uart_amba_port *uap = container_of(ws, struct uart_amba_port,
+						  tx_work);
+	spin_lock(&uap->port.lock);
+	pl011_tx_chars(uap, true);
+	spin_unlock(&uap->port.lock);
+}
+
 /* Start TX with programmed I/O only (no DMA) */
 static void pl011_start_tx_pio(struct uart_amba_port *uap)
 {
@@ -1573,6 +1585,7 @@ static irqreturn_t pl011_int(int irq, void *dev_id)
 	struct uart_amba_port *uap = dev_id;
 	unsigned long flags;
 	unsigned int status, pass_counter = AMBA_ISR_PASS_LIMIT;
+	unsigned int clr;
 	int handled = 0;
 
 	uart_port_lock_irqsave(&uap->port, &flags);
@@ -1581,9 +1594,12 @@ static irqreturn_t pl011_int(int irq, void *dev_id)
 		do {
 			check_apply_cts_event_workaround(uap);
 
-			pl011_write(status & ~(UART011_TXIS|UART011_RTIS|
-					       UART011_RXIS),
-				    uap, REG_ICR);
+			if (uap->port.rs485.flags & SER_RS485_ENABLED)
+				clr = status & ~(UART011_RTIS | UART011_RXIS);
+			else
+				clr = status & ~(UART011_TXIS | UART011_RTIS |
+						 UART011_RXIS);
+			pl011_write(clr, uap, REG_ICR);
 
 			if (status & (UART011_RTIS|UART011_RXIS)) {
 				if (pl011_dma_rx_running(uap))
@@ -1594,9 +1610,12 @@ static irqreturn_t pl011_int(int irq, void *dev_id)
 			if (status & (UART011_DSRMIS|UART011_DCDMIS|
 				      UART011_CTSMIS|UART011_RIMIS))
 				pl011_modem_status(uap);
-			if (status & UART011_TXIS)
-				pl011_tx_chars(uap, true);
-
+			if (status & UART011_TXIS) {
+				if (uap->port.rs485.flags & SER_RS485_ENABLED)
+					queue_work(uap->tx_wq, &uap->tx_work);
+				else
+					pl011_tx_chars(uap, true);
+			}
 			if (pass_counter-- == 0)
 				break;
 
@@ -2779,10 +2798,17 @@ static int pl011_setup_port(struct device *dev, struct uart_amba_port *uap,
 	uap->port.has_sysrq = IS_ENABLED(CONFIG_SERIAL_AMBA_PL011_CONSOLE);
 	uap->port.flags = UPF_BOOT_AUTOCONF;
 	uap->port.line = index;
+	INIT_WORK(&uap->tx_work, pl011_tx_work_func);
+	uap->tx_wq = alloc_workqueue("amba-tx-wq",
+				     WQ_HIGHPRI | WQ_CPU_INTENSIVE, 1);
+	if (!uap->tx_wq)
+		return -ENOMEM;
 
 	ret = pl011_get_rs485_mode(uap);
-	if (ret)
+	if (ret) {
+		destroy_workqueue(uap->tx_wq);
 		return ret;
+	}
 
 	amba_ports[index] = uap;
 
@@ -2883,6 +2909,7 @@ static void pl011_remove(struct amba_device *dev)
 
 	uart_remove_one_port(&amba_reg, &uap->port);
 	pl011_unregister_port(uap);
+	destroy_workqueue(uap->tx_wq);
 }
 
 #ifdef CONFIG_PM_SLEEP
