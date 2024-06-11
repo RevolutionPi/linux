@@ -1298,6 +1298,9 @@ static void pl011_rs485_tx_stop(struct uart_amba_port *uap)
 	int i = 0;
 	u32 cr;
 
+	/* Release lock temporarily */
+	spin_unlock(&uap->port.lock);
+
 	/* Wait until hardware tx queue is empty */
 	while (!pl011_tx_empty(port)) {
 		if (i > MAX_TX_DRAIN_ITERS) {
@@ -1312,6 +1315,9 @@ static void pl011_rs485_tx_stop(struct uart_amba_port *uap)
 
 	if (port->rs485.delay_rts_after_send)
 		mdelay(port->rs485.delay_rts_after_send);
+
+	/* Reclaim temporarily released lock */
+	spin_lock(&uap->port.lock);
 
 	cr = pl011_read(uap, REG_CR);
 
@@ -1467,8 +1473,13 @@ static void pl011_rs485_tx_start(struct uart_amba_port *uap)
 
 	pl011_write(cr, uap, REG_CR);
 
-	if (port->rs485.delay_rts_before_send)
+	if (port->rs485.delay_rts_before_send) {
+		/* Release lock temporarily */
+		spin_unlock(&uap->port.lock);
 		mdelay(port->rs485.delay_rts_before_send);
+		/* Reclaim temporarily released lock */
+		spin_lock(&uap->port.lock);
+	}
 
 	uap->rs485_tx_started = true;
 }
@@ -1992,8 +2003,10 @@ static void pl011_shutdown(struct uart_port *port)
 
 	pl011_dma_shutdown(uap);
 
+	spin_lock(&uap->port.lock);
 	if ((port->rs485.flags & SER_RS485_ENABLED) && uap->rs485_tx_started)
 		pl011_rs485_tx_stop(uap);
+	spin_unlock(&uap->port.lock);
 
 	free_irq(uap->port.irq, uap);
 
