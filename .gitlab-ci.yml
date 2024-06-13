@@ -4,7 +4,7 @@ include:
     file: "base.yml"
   - project: "revolutionpi/infrastructure/ci-templates"
     file: "kernel-devel-package.yml"
-      
+
 checkpatch:
   stage: test
   image: debian:bookworm-slim
@@ -31,3 +31,60 @@ checkpatch:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   allow_failure: true
+
+build-kernel:
+  after_script:
+    - >
+      if [ "$CI_JOB_STATUS" == 'success' ]; then
+        echo "BUILD_KERNEL_JOB_ID=$CI_JOB_ID" >> build.env
+      fi
+  artifacts:
+    reports:
+      dotenv: build.env
+
+trigger-lava-ci:
+  needs: ["build-kernel"]
+  variables:
+    IMAGE_URL: "http://172.23.16.235:8082/artifactory/revpi-images-local/latest/2024-06-17-revpi-bookworm-arm64-lite.img.xz"
+    DEBIAN_FRONTEND: noninteractive
+  # The test stage cannot be assigned because this job depends on the build kernel, which is in an earlier stage. The stages are defined in base.yml 
+  stage: publish
+  image: "registry.gitlab.com/revolutionpi/infrastructure/docker-images/build-container/build-container-bookworm:arm64-latest"
+  tags:
+    - self-hosted
+    - host-arm64
+  before_script:
+    # https://docs.gitlab.com/ee/api/job_artifacts.html
+    # the BUILD_KERNEL_JOB_ID is passed from the build-kernel job
+    - export pkg_uri="https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/jobs/${BUILD_KERNEL_JOB_ID}/artifacts/build-result/"
+    - |
+      export pkg_name="$(printf "%s_snapshot-%s" \
+        "$(date +%F)" \
+        "$CI_PIPELINE_IID")"
+  script:
+    - cd build-result/
+    - pkgs="$(find . -iname "*.deb" \! -name "linux-libc*" \! -name "*-dbg_*" -exec basename {} \;)"
+    - >
+      pkg_urls=""
+
+      for pkg in $pkgs; do
+        pkg_urls="${pkg_urls} $pkg_uri$pkg"
+      done
+    - echo "Pkg-Name -> $pkg_name"
+    - echo "Pkg-Uri -> $pkg_uri"
+    - echo "Pkg-Urls -> $pkg_urls"
+
+    # project id 51317347:
+    # https://gitlab.com/revolutionpi/infrastructure/testing/lava-ci
+    #
+    # NOTE: the manually-created trigger token for lava-ci needs to be used for
+    # it to be able to tell if the pipeline was started from a trigger or not.
+    - |
+      curl \
+        -f \
+        --request POST \
+        --form "token=$LAVA_CI_GITLAB_TRIGGER_TOKEN" \
+        --form "ref=master" \
+        --form "variables[PKG_URL]=$pkg_urls" \
+        --form "variables[IMAGE_URL]=$IMAGE_URL" \
+        "https://gitlab.com/api/v4/projects/51317347/trigger/pipeline"
