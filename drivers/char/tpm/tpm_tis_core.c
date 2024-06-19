@@ -25,6 +25,7 @@
 #include <linux/acpi.h>
 #include <linux/freezer.h>
 #include <linux/dmi.h>
+#include <linux/gpio/consumer.h>
 #include "tpm.h"
 #include "tpm_tis_core.h"
 
@@ -1098,6 +1099,35 @@ static const struct tpm_class_ops tpm_tis = {
 	.clk_enable = tpm_tis_clkrun_enable,
 };
 
+static int tpm_reset(struct device *dev)
+{
+	const unsigned int T_POR = 80; /* usecs */
+	const unsigned int T_WRST = 2; /* usecs */
+	const unsigned int T_RSTIN = 60; /* msecs */
+	struct gpio_desc *reset_gpio;
+
+	reset_gpio = gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
+	if (!reset_gpio) { /* skip reset */
+		dev_dbg(dev, "no reset GPIO available\n");
+		goto skip;
+	}
+	if (IS_ERR(reset_gpio)) {
+		dev_dbg(dev, "failed to retrieve reset GPIO\n");
+		return PTR_ERR(reset_gpio);
+	}
+
+	udelay(T_POR);
+	/* Assert (low active) TPM reset */
+	gpiod_set_value(reset_gpio, 0);
+	udelay(T_WRST);
+	/* Dessert TPM reset */
+	gpiod_set_value(reset_gpio, 1);
+	msleep(T_RSTIN);
+	gpiod_put(reset_gpio);
+skip:
+	return 0;
+}
+
 int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 		      const struct tpm_tis_phy_ops *phy_ops,
 		      acpi_handle acpi_dev_handle)
@@ -1134,6 +1164,12 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	INIT_WORK(&priv->free_irq_work, tpm_tis_free_irq_func);
 
 	dev_set_drvdata(&chip->dev, priv);
+
+	rc = tpm_reset(dev);
+	if (rc < 0) {
+		dev_err(dev, "failed to reset TPM\n");
+		return rc;
+	}
 
 	rc = tpm_tis_read32(priv, TPM_DID_VID(0), &vendor);
 	if (rc < 0)
