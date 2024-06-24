@@ -278,4 +278,11 @@
 			};
 		};
 	};
+
+	fragment@3 {
+		target = <&rpi_rtc>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
 };
