@@ -378,4 +378,13 @@
 			status = "okay";
 		};
 	};
+
+	/* PHY1 (SoC Ethernet) */
+	fragment@7 {
+		target = <&phy1>;
+		__overlay__ {
+			/* Link Speed/Activity */
+			led-modes = <0x08 0x00>;
+		};
+	};
 };
