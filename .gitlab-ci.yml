@@ -32,48 +32,40 @@ checkpatch:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   allow_failure: true
 
-build-kernel:
-  after_script:
-    - >
-      if [ "$CI_JOB_STATUS" == 'success' ]; then
-        echo "BUILD_KERNEL_JOB_ID=$CI_JOB_ID" >> build.env
-      fi
-  artifacts:
-    reports:
-      dotenv: build.env
-
 trigger-lava-ci:
-  needs: ["build-kernel"]
+  dependencies:
+    - build-kernel
   variables:
-    IMAGE_URL: "http://172.23.16.235:8082/artifactory/revpi-images-local/latest/2024-06-17-revpi-bookworm-arm64-lite.img.xz"
+    IMAGE_URL: "https://artifactory.kunbus.com:443/artifactory/revpi-ci-artifacts/debos-build/240701_1355813865/6a02c16f5f2a_2024-07-01-revpi-bookworm-arm64-default.img.xz"
     DEBIAN_FRONTEND: noninteractive
-  # The test stage cannot be assigned because this job depends on the build kernel, which is in an earlier stage. The stages are defined in base.yml 
+  # The test stage cannot be assigned because this job depends on the build kernel, which is in an earlier stage. The stages are defined in base.yml
   stage: publish
   image: "registry.gitlab.com/revolutionpi/infrastructure/docker-images/build-container/build-container-bookworm:arm64-latest"
   tags:
     - self-hosted
     - host-arm64
   before_script:
-    # https://docs.gitlab.com/ee/api/job_artifacts.html
-    # the BUILD_KERNEL_JOB_ID is passed from the build-kernel job
-    - export pkg_uri="https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/jobs/${BUILD_KERNEL_JOB_ID}/artifacts/build-result/"
+    - sudo apt update && sudo apt install -y jq
     - |
       export pkg_name="$(printf "%s_snapshot-%s" \
         "$(date +%F)" \
         "$CI_PIPELINE_IID")"
+    - export ARTIFACTORY_API_URL="$ARTIFACTORY_URL/api/storage"
+    - export ARTIFACTS_URL="$ARTIFACTORY_URL/$ARTIFACTORY_UPLOAD_DIR/"
   script:
-    - cd build-result/
-    - pkgs="$(find . -iname "*.deb" \! -name "linux-libc*" \! -name "*-dbg_*" -exec basename {} \;)"
+    - |
+      artifacts=$(curl \
+        -s \
+        -u "$ARTIFACTORY_USER:$ARTIFACTORY_TOKEN" \
+        "$ARTIFACTORY_API_URL/$ARTIFACTORY_UPLOAD_DIR/" | jq -r '.children | .[].uri | select(. | test("^(?!.*(libc|dbg)).*deb$"))')
+
     - >
-      pkg_urls=""
+      artifacts_urls=""
 
-      for pkg in $pkgs; do
-        pkg_urls="${pkg_urls} $pkg_uri$pkg"
+      for artifact in $artifacts; do
+        artifacts_urls="${artifacts_urls} $ARTIFACTS_URL$artifact"
       done
-    - echo "Pkg-Name -> $pkg_name"
-    - echo "Pkg-Uri -> $pkg_uri"
-    - echo "Pkg-Urls -> $pkg_urls"
-
+    - echo "artifacts_urls $artifacts_urls"
     # project id 51317347:
     # https://gitlab.com/revolutionpi/infrastructure/testing/lava-ci
     #
@@ -85,6 +77,6 @@ trigger-lava-ci:
         --request POST \
         --form "token=$LAVA_CI_GITLAB_TRIGGER_TOKEN" \
         --form "ref=master" \
-        --form "variables[PKG_URL]=$pkg_urls" \
+        --form "variables[PKG_URL]=$artifacts_urls" \
         --form "variables[IMAGE_URL]=$IMAGE_URL" \
         "https://gitlab.com/api/v4/projects/51317347/trigger/pipeline"
