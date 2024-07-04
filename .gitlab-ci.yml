@@ -80,3 +80,9 @@ trigger-lava-ci:
         --form "variables[PKG_URL]=$artifacts_urls" \
         --form "variables[IMAGE_URL]=$IMAGE_URL" \
         "https://gitlab.com/api/v4/projects/51317347/trigger/pipeline"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: manual
