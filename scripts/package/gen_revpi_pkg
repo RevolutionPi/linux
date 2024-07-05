@@ -1,0 +1,113 @@
+#!/bin/sh
+
+# SPDX-FileCopyrightText: 2024 KUNBUS GmbH
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+# Take the upstream version, derive the package version and generate the
+# "debian/" folder.
+#
+# $1: upstream version, including tag
+# output: populated "debian/" folder
+
+set -e
+
+: ${KBUILD_BUILD_HOST:=kunbus.com}
+: ${KBUILD_BUILD_USER:=support}
+: ${DEBEMAIL:="${KBUILD_BUILD_USER}@${KBUILD_BUILD_HOST}"}
+: ${DEBFULLNAME:="KUNBUS GmbH"}
+: ${ARCH:=arm64}
+: ${RELEASE:=bookworm}
+: ${RPI_ARCH_SUFFIX:=-v8}
+
+VERBOSITY=0
+EXTRA_MAKE_OPTS=""
+# v${MAINLINE_VER}-rt${RT_VER}-revpi${REVPI_VER}
+UPSTREAM_VERS_REGEX='^v\([[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\)-rt\([[:digit:]]\+\)-revpi\([[:digit:]]\+\)$'
+
+usage() {
+	cat <<- __EOF__
+	usage: $(basename "$0"): [-s] [-v...] UPSTREAM_VERSION
+
+	Generate the "debian/" directory for the linux kernel.
+	Execute this script in the root of the kernel source tree.
+
+	Options:
+	  -s    Build a snapshot
+	  -v    Be verbose. Pass multiple times for increased verbosity
+	        Uses "set -x" and sets "KBUILD_VERBOSE=1"
+
+	Arguments:
+	  UPSTREAM_VERSION    The upstream version of the project, formatted as
+	                      "v\${MAINLINE_VER}-rt\${RT_VER}-revpi\${REVPI_VER}"
+	__EOF__
+
+	exit "${1:-0}"
+}
+
+while getopts "hsv" opt; do
+	case "$opt" in
+	h) usage 0 ;;
+	s)
+		head="$(git rev-parse -q --short=12 --verify HEAD)"
+		snapshot="+$(date +%y%m%d)+g${head}"
+		;;
+	v) VERBOSITY=$((VERBOSITY+1)) ;;
+	?) usage 1 >&2 ;;
+	esac
+done
+
+shift $((OPTIND - 1))
+
+if [ $# -lt 1 ]; then
+	printf "Invalid number of arguments given\n" >&2
+	usage 1 >&2
+fi
+
+upstream_version=$1
+
+[ $VERBOSITY -gt 0 ] && set -x
+[ $VERBOSITY -gt 1 ] && EXTRA_MAKE_OPTS="KBUILD_VERBOSE=1"
+
+mainline_vers="$(printf "%s\n" "$upstream_version" \
+	| sed -e "s/$UPSTREAM_VERS_REGEX/\1/")"
+rt_vers="$(printf "%s\n" "$upstream_version" \
+	| sed -e "s/$UPSTREAM_VERS_REGEX/\2/")"
+revpi_vers="$(printf "%s\n" "$upstream_version" \
+	| sed -e "s/$UPSTREAM_VERS_REGEX/\3/")"
+
+pkg_name_ext="${mainline_vers%.*}.0-revpi${revpi_vers}-rpi${RPI_ARCH_SUFFIX}"
+pkg_vers="${mainline_vers}-rt${rt_vers}-revpi${revpi_vers}-1+deb12${snapshot}+1"
+
+# export ARCH so kbuild knows, too
+export ARCH
+set -- \
+	KBUILD_BUILD_HOST="$KBUILD_BUILD_HOST" \
+	KBUILD_BUILD_USER="$KBUILD_BUILD_USER" \
+	KERNELRELEASE="$pkg_name_ext" \
+	KDEB_PKGVERSION="$pkg_vers" \
+	KDEB_SOURCENAME=linux-revpi"$RPI_ARCH_SUFFIX" \
+	KDEB_CHANGELOG_DIST="$RELEASE" \
+	DEBEMAIL="$DEBEMAIL" \
+	DEBFULLNAME="$DEBFULLNAME" \
+	$EXTRA_MAKE_OPTS \
+	--jobs=$(nproc)
+
+make "$@" revpi"${RPI_ARCH_SUFFIX}"_defconfig
+make "$@" run-command \
+	KBUILD_RUN_COMMAND='$(srctree)/scripts/package/mkdebian --need-source'
+
+cat << EOF > debian/.gitignore
+files
+*.files
+linux-headers/
+linux-headers-*/
+linux-image/
+linux-image-*/
+linux-libc-dev/
+*.substvars
+
+!patches/
+!patches/*.patch
+!patches/series
+EOF
