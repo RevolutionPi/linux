@@ -27,12 +27,13 @@ UPSTREAM_VERS_REGEX='^v\([[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\)-rt\([[:di
 
 usage() {
 	cat <<- __EOF__
-	usage: $(basename "$0"): [-s] [-v...] UPSTREAM_VERSION
+	usage: $(basename "$0"): [-ds] [-v...] UPSTREAM_VERSION
 
 	Generate the "debian/" directory for the linux kernel.
 	Execute this script in the root of the kernel source tree.
 
 	Options:
+	  -d    Upstream is a "devel/" branch
 	  -s    Build a snapshot
 	  -v    Be verbose. Pass multiple times for increased verbosity
 	        Uses "set -x" and sets "KBUILD_VERBOSE=1"
@@ -45,8 +46,9 @@ usage() {
 	exit "${1:-0}"
 }
 
-while getopts "hsv" opt; do
+while getopts "dhsv" opt; do
 	case "$opt" in
+	d) DEVEL_BRANCH="devel/" ;;
 	h) usage 0 ;;
 	s)
 		head="$(git rev-parse -q --short=12 --verify HEAD)"
@@ -111,3 +113,13 @@ linux-libc-dev/
 !patches/*.patch
 !patches/series
 EOF
+
+cat > debian/gbp.conf <<- __EOF__
+[DEFAULT]
+upstream-branch = ${DEVEL_BRANCH}revpi-${mainline_vers%.*}
+upstream-tag = v%(version)s
+debian-branch = debian/$RELEASE
+debian-tag = debian/%(version)s
+debian-tag-msg = %(pkg)s Debian release %(version)s
+pristine-tar = True
+__EOF__
