@@ -122,8 +122,7 @@ gen_source ()
 	fi
 }
 
-rm -rf debian
-mkdir debian
+mkdir -p debian
 
 user=${KBUILD_BUILD_USER:-$(id -nu)}
 name=${DEBFULLNAME:-${user}}
