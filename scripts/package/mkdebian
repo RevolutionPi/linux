@@ -176,14 +176,20 @@ fi
 
 echo $debarch > debian/arch
 
-# Generate a simple changelog template
-cat <<EOF > debian/changelog
-$sourcename ($packageversion) $distribution; urgency=low
+# Only build a changelog if none is there or it's explicitly wanted.
+# The "debian/" directory will be checked into git on the Revolution Pi linux
+# fork which will also include a maintained changelog that shouldn't be
+# removed.
+if [ ! -e debian/changelog ] || [ -n "$FORCE_CHANGELOG_GEN" ]; then
+	# Generate a simple changelog template
+	cat <<-EOF > debian/changelog
+	$sourcename ($packageversion) $distribution; urgency=low
 
-  * Custom built Linux kernel.
+	  * Custom built Linux kernel.
 
- -- $maintainer  $(date -R)
-EOF
+	 -- $maintainer  $(date -R)
+	EOF
+fi
 
 meta_pkg_append=${sourcename#linux}
 

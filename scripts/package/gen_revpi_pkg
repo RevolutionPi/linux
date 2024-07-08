@@ -24,15 +24,17 @@ VERBOSITY=0
 EXTRA_MAKE_OPTS=""
 # v${MAINLINE_VER}-rt${RT_VER}-revpi${REVPI_VER}
 UPSTREAM_VERS_REGEX='^v\([[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\)-rt\([[:digit:]]\+\)-revpi\([[:digit:]]\+\)$'
+FORCE_CHANGELOG_GEN=""
 
 usage() {
 	cat <<- __EOF__
-	usage: $(basename "$0"): [-ds] [-v...] UPSTREAM_VERSION
+	usage: $(basename "$0"): [-cds] [-v...] UPSTREAM_VERSION
 
 	Generate the "debian/" directory for the linux kernel.
 	Execute this script in the root of the kernel source tree.
 
 	Options:
+	  -c    Generate a new debian/changelog and override the old one if present
 	  -d    Upstream is a "devel/" branch
 	  -s    Build a snapshot
 	  -v    Be verbose. Pass multiple times for increased verbosity
@@ -46,8 +48,9 @@ usage() {
 	exit "${1:-0}"
 }
 
-while getopts "dhsv" opt; do
+while getopts "cdhsv" opt; do
 	case "$opt" in
+	c) FORCE_CHANGELOG_GEN="true" ;;
 	d) DEVEL_BRANCH="devel/" ;;
 	h) usage 0 ;;
 	s)
@@ -81,8 +84,8 @@ revpi_vers="$(printf "%s\n" "$upstream_version" \
 pkg_name_ext="${mainline_vers%.*}.0-revpi${revpi_vers}-rpi${RPI_ARCH_SUFFIX}"
 pkg_vers="${mainline_vers}-rt${rt_vers}-revpi${revpi_vers}-1+deb12${snapshot}+1"
 
-# export ARCH so kbuild knows, too
-export ARCH
+# export variables so kbuild knows about them, too
+export ARCH FORCE_CHANGELOG_GEN
 set -- \
 	KBUILD_BUILD_HOST="$KBUILD_BUILD_HOST" \
 	KBUILD_BUILD_USER="$KBUILD_BUILD_USER" \
