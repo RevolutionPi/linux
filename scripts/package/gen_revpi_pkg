@@ -74,6 +74,11 @@ upstream_version=$1
 [ $VERBOSITY -gt 0 ] && set -x
 [ $VERBOSITY -gt 1 ] && EXTRA_MAKE_OPTS="KBUILD_VERBOSE=1"
 
+if ! expr "$upstream_version" : "$UPSTREAM_VERS_REGEX" >/dev/null; then
+	printf "Invalid upstream version\n" >&2
+	usage 1 >&2
+fi
+
 mainline_vers="$(printf "%s\n" "$upstream_version" \
 	| sed -e "s/$UPSTREAM_VERS_REGEX/\1/")"
 rt_vers="$(printf "%s\n" "$upstream_version" \
