@@ -22,4 +22,14 @@ config SERIAL_DEV_CTRL_TTYPORT
 	depends on SERIAL_DEV_BUS != m
 	default y
 
+config SERIAL_DEV_MUX_PIBRIDGE
+        tristate "PiBridge"
+        help
+          Say Y here if you want to use the PiBridge bus.
+
+          If unsure, say N.
+        depends on TTY
+        depends on SERIAL_DEV_BUS != m
+        default n
+
 endif
