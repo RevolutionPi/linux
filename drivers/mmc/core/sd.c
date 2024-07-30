@@ -26,6 +26,7 @@
 #include "host.h"
 #include "bus.h"
 #include "mmc_ops.h"
+#include "quirks.h"
 #include "sd.h"
 #include "sd_ops.h"
 
@@ -714,7 +715,8 @@ MMC_DEV_ATTR(oemid, "0x%04x\n", card->cid.oemid);
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(ocr, "0x%08x\n", card->ocr);
 MMC_DEV_ATTR(rca, "0x%04x\n", card->rca);
-
+MMC_DEV_ATTR(ext_perf, "%02x\n", card->ext_perf.feature_support);
+MMC_DEV_ATTR(ext_power, "%02x\n", card->ext_power.feature_support);
 
 static ssize_t mmc_dsr_show(struct device *dev, struct device_attribute *attr,
 			    char *buf)
@@ -776,6 +778,8 @@ static struct attribute *sd_std_attrs[] = {
 	&dev_attr_ocr.attr,
 	&dev_attr_rca.attr,
 	&dev_attr_dsr.attr,
+	&dev_attr_ext_perf.attr,
+	&dev_attr_ext_power.attr,
 	NULL,
 };
 
@@ -1015,98 +1019,16 @@ static bool mmc_sd_card_using_v18(struct mmc_card *card)
 	       (SD_MODE_UHS_SDR50 | SD_MODE_UHS_SDR104 | SD_MODE_UHS_DDR50);
 }
 
-static int sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
-			    u8 reg_data)
-{
-	struct mmc_host *host = card->host;
-	struct mmc_request mrq = {};
-	struct mmc_command cmd = {};
-	struct mmc_data data = {};
-	struct scatterlist sg;
-	u8 *reg_buf;
-
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
-
-	mrq.cmd = &cmd;
-	mrq.data = &data;
-
-	/*
-	 * Arguments of CMD49:
-	 * [31:31] MIO (0 = memory).
-	 * [30:27] FNO (function number).
-	 * [26:26] MW - mask write mode (0 = disable).
-	 * [25:18] page number.
-	 * [17:9] offset address.
-	 * [8:0] length (0 = 1 byte).
-	 */
-	cmd.arg = fno << 27 | page << 18 | offset << 9;
-
-	/* The first byte in the buffer is the data to be written. */
-	reg_buf[0] = reg_data;
-
-	data.flags = MMC_DATA_WRITE;
-	data.blksz = 512;
-	data.blocks = 1;
-	data.sg = &sg;
-	data.sg_len = 1;
-	sg_init_one(&sg, reg_buf, 512);
-
-	cmd.opcode = SD_WRITE_EXTR_SINGLE;
-	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
-
-	mmc_set_data_timeout(&data, card);
-	mmc_wait_for_req(host, &mrq);
-
-	kfree(reg_buf);
-
-	/*
-	 * Note that, the SD card is allowed to signal busy on DAT0 up to 1s
-	 * after the CMD49. Although, let's leave this to be managed by the
-	 * caller.
-	 */
-
-	if (cmd.error)
-		return cmd.error;
-	if (data.error)
-		return data.error;
-
-	return 0;
-}
-
-static int sd_read_ext_reg(struct mmc_card *card, u8 fno, u8 page,
-			   u16 offset, u16 len, u8 *reg_buf)
-{
-	u32 cmd_args;
-
-	/*
-	 * Command arguments of CMD48:
-	 * [31:31] MIO (0 = memory).
-	 * [30:27] FNO (function number).
-	 * [26:26] reserved (0).
-	 * [25:18] page number.
-	 * [17:9] offset address.
-	 * [8:0] length (0 = 1 byte, 1ff = 512 bytes).
-	 */
-	cmd_args = fno << 27 | page << 18 | offset << 9 | (len -1);
-
-	return mmc_send_adtc_data(card, card->host, SD_READ_EXTR_SINGLE,
-				  cmd_args, reg_buf, 512);
-}
-
 static int sd_parse_ext_reg_power(struct mmc_card *card, u8 fno, u8 page,
 				  u16 offset)
 {
 	int err;
 	u8 *reg_buf;
 
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
+	reg_buf = card->ext_reg_buf;
 
 	/* Read the extension register for power management function. */
-	err = sd_read_ext_reg(card, fno, page, offset, 512, reg_buf);
+	err = mmc_sd_read_ext_reg(card, fno, page, offset, 512, reg_buf);
 	if (err) {
 		pr_warn("%s: error %d reading PM func of ext reg\n",
 			mmc_hostname(card->host), err);
@@ -1133,7 +1055,6 @@ static int sd_parse_ext_reg_power(struct mmc_card *card, u8 fno, u8 page,
 	card->ext_power.offset = offset;
 
 out:
-	kfree(reg_buf);
 	return err;
 }
 
@@ -1143,11 +1064,9 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 	int err;
 	u8 *reg_buf;
 
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
+	reg_buf = card->ext_reg_buf;
 
-	err = sd_read_ext_reg(card, fno, page, offset, 512, reg_buf);
+	err = mmc_sd_read_ext_reg(card, fno, page, offset, 512, reg_buf);
 	if (err) {
 		pr_warn("%s: error %d reading PERF func of ext reg\n",
 			mmc_hostname(card->host), err);
@@ -1173,16 +1092,34 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 	if ((reg_buf[4] & BIT(0)) && !mmc_card_broken_sd_cache(card))
 		card->ext_perf.feature_support |= SD_EXT_PERF_CACHE;
 
-	/* Command queue support indicated via queue depth bits (0 to 4). */
-	if (reg_buf[6] & 0x1f)
+	/*
+	 * Command queue support indicated via queue depth bits (0 to 4).
+	 * Qualify this with the other mandatory required features.
+	 */
+	if (reg_buf[6] & 0x1f && card->ext_power.feature_support & SD_EXT_POWER_OFF_NOTIFY &&
+	    card->ext_perf.feature_support & SD_EXT_PERF_CACHE) {
 		card->ext_perf.feature_support |= SD_EXT_PERF_CMD_QUEUE;
+		card->ext_csd.cmdq_depth = reg_buf[6] & 0x1f;
+		card->ext_csd.cmdq_support = true;
+		pr_debug("%s: Command Queue supported depth %u\n",
+			 mmc_hostname(card->host),
+			 card->ext_csd.cmdq_depth);
+		/*
+		 * If CQ is enabled, there is a contract between host and card such that
+		 * VDD will be maintained and removed only if a power off notification
+		 * is provided. An SD card in an accessible slot means surprise removal
+		 * is a possibility. As a middle ground, keep the default maximum of 1
+		 * posted write unless the card is "hardwired".
+		 */
+		if (!mmc_card_is_removable(card->host))
+			card->max_posted_writes = card->ext_csd.cmdq_depth;
+	}
 
 	card->ext_perf.fno = fno;
 	card->ext_perf.page = page;
 	card->ext_perf.offset = offset;
 
 out:
-	kfree(reg_buf);
 	return err;
 }
 
@@ -1237,7 +1174,7 @@ static int sd_parse_ext_reg(struct mmc_card *card, u8 *gen_info_buf,
 	return 0;
 }
 
-static int sd_read_ext_regs(struct mmc_card *card)
+static int mmc_sd_read_ext_regs(struct mmc_card *card)
 {
 	int err, i;
 	u8 num_ext, *gen_info_buf;
@@ -1249,15 +1186,21 @@ static int sd_read_ext_regs(struct mmc_card *card)
 	if (!(card->scr.cmds & SD_SCR_CMD48_SUPPORT))
 		return 0;
 
-	gen_info_buf = kzalloc(512, GFP_KERNEL);
+	gen_info_buf = kzalloc(1024, GFP_KERNEL);
 	if (!gen_info_buf)
 		return -ENOMEM;
+
+	card->ext_reg_buf = kzalloc(512, GFP_KERNEL);
+	if (!card->ext_reg_buf) {
+		err = -ENOMEM;
+		goto out;
+	}
 
 	/*
 	 * Read 512 bytes of general info, which is found at function number 0,
 	 * at page 0 and with no offset.
 	 */
-	err = sd_read_ext_reg(card, 0, 0, 0, 512, gen_info_buf);
+	err = mmc_sd_read_ext_reg(card, 0, 0, 0, 512, gen_info_buf);
 	if (err) {
 		pr_err("%s: error %d reading general info of SD ext reg\n",
 			mmc_hostname(card->host), err);
@@ -1274,14 +1217,23 @@ static int sd_read_ext_regs(struct mmc_card *card)
 	num_ext = gen_info_buf[4];
 
 	/*
-	 * We only support revision 0 and limit it to 512 bytes for simplicity.
+	 * We only support revision 0 and up to the spec-defined maximum of 1K.
 	 * No matter what, let's return zero to allow us to continue using the
 	 * card, even if we can't support the features from the SD function
 	 * extensions registers.
 	 */
-	if (rev != 0 || len > 512) {
-		pr_warn("%s: non-supported SD ext reg layout\n",
-			mmc_hostname(card->host));
+	if (rev != 0 || len > 1024) {
+		pr_warn("%s: non-supported SD ext reg layout rev %u length %u\n",
+			mmc_hostname(card->host), rev, len);
+		goto out;
+	}
+
+	/* If the General Information block spills into the next page, read the rest */
+	if (len > 512)
+		err = mmc_sd_read_ext_reg(card, 0, 1, 0, 512, &gen_info_buf[512]);
+	if (err) {
+		pr_err("%s: error %d reading page 1 of general info of SD ext reg\n",
+			mmc_hostname(card->host), err);
 		goto out;
 	}
 
@@ -1319,9 +1271,15 @@ static int sd_flush_cache(struct mmc_host *host)
 	if (!sd_cache_enabled(host))
 		return 0;
 
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
+	reg_buf = card->ext_reg_buf;
+
+	/*
+	 * Flushing requires sending CMD49 (adtc), which can't be done as a DCMD
+	 * and conflicts with CQHCI - temporarily turn CQE off to use the SDHCI
+	 * command/argument registers.
+	 */
+	if (host->cqe_on)
+		host->cqe_ops->cqe_off(host);
 
 	/*
 	 * Set Flush Cache at bit 0 in the performance enhancement register at
@@ -1331,7 +1289,7 @@ static int sd_flush_cache(struct mmc_host *host)
 	page = card->ext_perf.page;
 	offset = card->ext_perf.offset + 261;
 
-	err = sd_write_ext_reg(card, fno, page, offset, BIT(0));
+	err = mmc_sd_write_ext_reg(card, fno, page, offset, BIT(0));
 	if (err) {
 		pr_warn("%s: error %d writing Cache Flush bit\n",
 			mmc_hostname(host), err);
@@ -1347,7 +1305,7 @@ static int sd_flush_cache(struct mmc_host *host)
 	 * Read the Flush Cache bit. The card shall reset it, to confirm that
 	 * it's has completed the flushing of the cache.
 	 */
-	err = sd_read_ext_reg(card, fno, page, offset, 1, reg_buf);
+	err = mmc_sd_read_ext_reg(card, fno, page, offset, 1, reg_buf);
 	if (err) {
 		pr_warn("%s: error %d reading Cache Flush bit\n",
 			mmc_hostname(host), err);
@@ -1357,26 +1315,20 @@ static int sd_flush_cache(struct mmc_host *host)
 	if (reg_buf[0] & BIT(0))
 		err = -ETIMEDOUT;
 out:
-	kfree(reg_buf);
 	return err;
 }
 
 static int sd_enable_cache(struct mmc_card *card)
 {
-	u8 *reg_buf;
 	int err;
 
 	card->ext_perf.feature_enabled &= ~SD_EXT_PERF_CACHE;
-
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
 
 	/*
 	 * Set Cache Enable at bit 0 in the performance enhancement register at
 	 * 260 bytes offset.
 	 */
-	err = sd_write_ext_reg(card, card->ext_perf.fno, card->ext_perf.page,
+	err = mmc_sd_write_ext_reg(card, card->ext_perf.fno, card->ext_perf.page,
 			       card->ext_perf.offset + 260, BIT(0));
 	if (err) {
 		pr_warn("%s: error %d writing Cache Enable bit\n",
@@ -1390,7 +1342,6 @@ static int sd_enable_cache(struct mmc_card *card)
 		card->ext_perf.feature_enabled |= SD_EXT_PERF_CACHE;
 
 out:
-	kfree(reg_buf);
 	return err;
 }
 
@@ -1433,6 +1384,7 @@ retry:
 
 		card->ocr = ocr;
 		card->type = MMC_TYPE_SD;
+		card->max_posted_writes = 1;
 		memcpy(card->raw_cid, cid, sizeof(card->raw_cid));
 	}
 
@@ -1474,6 +1426,9 @@ retry:
 		if (err)
 			goto free_card;
 	}
+
+	/* Apply quirks prior to card setup */
+	mmc_fixup_device(card, mmc_sd_fixups);
 
 	err = mmc_sd_setup_card(host, card, oldcard != NULL);
 	if (err)
@@ -1547,7 +1502,7 @@ retry:
 cont:
 	if (!oldcard) {
 		/* Read/parse the extension registers. */
-		err = sd_read_ext_regs(card);
+		err = mmc_sd_read_ext_regs(card);
 		if (err)
 			goto free_card;
 	}
@@ -1559,13 +1514,41 @@ cont:
 			goto free_card;
 	}
 
+	/* Enable command queueing if supported */
+	if (card->ext_csd.cmdq_support && host->caps2 & MMC_CAP2_CQE) {
+		/*
+		 * Right now the MMC block layer uses DCMDs to issue
+		 * cache-flush commands specific to eMMC devices.
+		 * Turning off DCMD support avoids generating Illegal Command
+		 * errors on SD, and flushing is instead done synchronously
+		 * by mmc_blk_issue_flush().
+		 */
+		host->caps2 &= ~MMC_CAP2_CQE_DCMD;
+		err = mmc_sd_cmdq_enable(card);
+		if (err && err != -EBADMSG)
+			goto free_card;
+		if (err) {
+			pr_warn("%s: Enabling CMDQ failed\n",
+				mmc_hostname(card->host));
+			card->ext_csd.cmdq_support = false;
+			card->ext_csd.cmdq_depth = 0;
+		}
+	}
+	card->reenable_cmdq = card->ext_csd.cmdq_en;
+
 	if (host->cqe_ops && !host->cqe_enabled) {
 		err = host->cqe_ops->cqe_enable(host, card);
 		if (!err) {
 			host->cqe_enabled = true;
-			host->hsq_enabled = true;
-			pr_info("%s: Host Software Queue enabled\n",
-				mmc_hostname(host));
+
+			if (card->ext_csd.cmdq_en) {
+				pr_info("%s: Command Queue Engine enabled, %u tags\n",
+					mmc_hostname(host), card->ext_csd.cmdq_depth);
+			} else {
+				host->hsq_enabled = true;
+				pr_info("%s: Host Software Queue enabled\n",
+					mmc_hostname(host));
+			}
 		}
 	}
 
@@ -1646,7 +1629,7 @@ static int sd_busy_poweroff_notify_cb(void *cb_data, bool *busy)
 	 * one byte offset and is one byte long. The Power Off Notification
 	 * Ready is bit 0.
 	 */
-	err = sd_read_ext_reg(card, card->ext_power.fno, card->ext_power.page,
+	err = mmc_sd_read_ext_reg(card, card->ext_power.fno, card->ext_power.page,
 			      card->ext_power.offset + 1, 1, data->reg_buf);
 	if (err) {
 		pr_warn("%s: error %d reading status reg of PM func\n",
@@ -1672,7 +1655,7 @@ static int sd_poweroff_notify(struct mmc_card *card)
 	 * Set the Power Off Notification bit in the power management settings
 	 * register at 2 bytes offset.
 	 */
-	err = sd_write_ext_reg(card, card->ext_power.fno, card->ext_power.page,
+	err = mmc_sd_write_ext_reg(card, card->ext_power.fno, card->ext_power.page,
 			       card->ext_power.offset + 2, BIT(0));
 	if (err) {
 		pr_warn("%s: error %d writing Power Off Notify bit\n",

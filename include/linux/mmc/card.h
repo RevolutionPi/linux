@@ -296,6 +296,7 @@ struct mmc_card {
 #define MMC_QUIRK_BROKEN_SD_DISCARD	(1<<14)	/* Disable broken SD discard support */
 #define MMC_QUIRK_BROKEN_SD_CACHE	(1<<15)	/* Disable broken SD cache support */
 #define MMC_QUIRK_BROKEN_CACHE_FLUSH	(1<<16)	/* Don't flush cache until the write has occurred */
+#define MMC_QUIRK_ERASE_BROKEN	(1<<31)		/* Skip erase */
 
 	bool			written_flag;	/* Indicates eMMC has been written since power on */
 	bool			reenable_cmdq;	/* Re-enable Command Queue */
@@ -319,6 +320,7 @@ struct mmc_card {
 	struct sd_switch_caps	sw_caps;	/* switch (CMD6) caps */
 	struct sd_ext_reg	ext_power;	/* SD extension reg for PM */
 	struct sd_ext_reg	ext_perf;	/* SD extension reg for PERF */
+	u8			*ext_reg_buf;	/* 512 byte block for extension register R/W */
 
 	unsigned int		sdio_funcs;	/* number of SDIO functions */
 	atomic_t		sdio_funcs_probed; /* number of probed SDIO funcs */
@@ -341,6 +343,8 @@ struct mmc_card {
 	unsigned int    nr_parts;
 
 	struct workqueue_struct *complete_wq;	/* Private workqueue */
+
+	unsigned int		max_posted_writes; /* command queue posted write limit */
 };
 
 static inline bool mmc_large_sector(struct mmc_card *card)

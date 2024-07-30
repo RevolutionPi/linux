@@ -580,6 +580,10 @@ static int drm_atomic_plane_set_property(struct drm_plane *plane,
 		state->color_encoding = val;
 	} else if (property == plane->color_range_property) {
 		state->color_range = val;
+	} else if (property == plane->chroma_siting_h_property) {
+		state->chroma_siting_h = val;
+	} else if (property == plane->chroma_siting_v_property) {
+		state->chroma_siting_v = val;
 	} else if (property == config->prop_fb_damage_clips) {
 		ret = drm_atomic_replace_property_blob_from_id(dev,
 					&state->fb_damage_clips,
@@ -646,6 +650,10 @@ drm_atomic_plane_get_property(struct drm_plane *plane,
 		*val = state->color_encoding;
 	} else if (property == plane->color_range_property) {
 		*val = state->color_range;
+	} else if (property == plane->chroma_siting_h_property) {
+		*val = state->chroma_siting_h;
+	} else if (property == plane->chroma_siting_v_property) {
+		*val = state->chroma_siting_v;
 	} else if (property == config->prop_fb_damage_clips) {
 		*val = (state->fb_damage_clips) ?
 			state->fb_damage_clips->base.id : 0;
@@ -693,6 +701,7 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 {
 	struct drm_device *dev = connector->dev;
 	struct drm_mode_config *config = &dev->mode_config;
+	bool margins_updated = false;
 	bool replaced = false;
 	int ret;
 
@@ -721,12 +730,16 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 		state->tv.subconnector = val;
 	} else if (property == config->tv_left_margin_property) {
 		state->tv.margins.left = val;
+		margins_updated = true;
 	} else if (property == config->tv_right_margin_property) {
 		state->tv.margins.right = val;
+		margins_updated = true;
 	} else if (property == config->tv_top_margin_property) {
 		state->tv.margins.top = val;
+		margins_updated = true;
 	} else if (property == config->tv_bottom_margin_property) {
 		state->tv.margins.bottom = val;
+		margins_updated = true;
 	} else if (property == config->legacy_tv_mode_property) {
 		state->tv.legacy_mode = val;
 	} else if (property == config->tv_mode_property) {
@@ -807,6 +820,12 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 			       connector->base.id, connector->name,
 			       property->base.id, property->name);
 		return -EINVAL;
+	}
+
+	if (margins_updated && state->crtc) {
+		ret = drm_atomic_add_affected_planes(state->state, state->crtc);
+
+		return ret;
 	}
 
 	return 0;

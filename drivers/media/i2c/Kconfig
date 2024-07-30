@@ -50,6 +50,28 @@ config VIDEO_AR0521
 	  To compile this driver as a module, choose M here: the
 	  module will be called ar0521.
 
+config VIDEO_ARDUCAM_64MP
+	tristate "Arducam 64MP sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a Video4Linux2 sensor driver for the Arducam
+	  64MP camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called arducam_64mp.
+
+config VIDEO_ARDUCAM_PIVARIETY
+	tristate "Arducam Pivariety sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a Video4Linux2 sensor driver for the Arducam
+	  Pivariety camera series.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called arducam-pivariety.
+
 config VIDEO_HI556
 	tristate "Hynix Hi-556 sensor support"
 	help
@@ -201,6 +223,43 @@ config VIDEO_IMX415
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx415.
 
+config VIDEO_IMX477
+	tristate "Sony IMX477 sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	select MEDIA_CONTROLLER
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX477 camera. Also supports the Sony IMX378.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx477.
+
+config VIDEO_IMX519
+	tristate "Arducam IMX519 sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a Video4Linux2 sensor driver for the Arducam
+	  IMX519 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called IMX519.
+
+config VIDEO_IMX708
+	tristate "Sony IMX708 sensor support"
+	depends on I2C && VIDEO_DEV
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX708 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx708.
+
 config VIDEO_MAX9271_LIB
 	tristate
 
@@ -311,6 +370,16 @@ config VIDEO_OV13B10
 	help
 	  This is a Video4Linux2 sensor driver for the OmniVision
 	  OV13B10 camera.
+
+config VIDEO_OV2311
+	tristate "OmniVision OV2311 sensor support"
+	depends on I2C && VIDEO_DEV
+	help
+	  This is a Video4Linux2 sensor-level driver for the OmniVision
+	  OV2311 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ov2311.
 
 config VIDEO_OV2640
 	tristate "OmniVision OV2640 sensor support"
@@ -444,6 +513,20 @@ config VIDEO_OV5695
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called ov5695.
+
+config VIDEO_OV64A40
+	tristate "OmniVision OV64A40 sensor support"
+	depends on I2C && VIDEO_DEV
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_FWNODE
+	select V4L2_CCI_I2C
+	help
+	  This is a Video4Linux2 sensor driver for the OmniVision
+	  OV64A40 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ov64a40.
 
 config VIDEO_OV6650
 	tristate "OmniVision OV6650 sensor support"
@@ -621,6 +704,13 @@ endif
 menu "Lens drivers"
 	visible if MEDIA_CAMERA_SUPPORT
 
+config VIDEO_AD5398
+	tristate "AD5398 lens voice coil support"
+	depends on GPIOLIB && I2C && VIDEO_DEV
+	select MEDIA_CONTROLLER
+	help
+	  This is a driver for the AD5398 camera lens voice coil.
+
 config VIDEO_AD5820
 	tristate "AD5820 lens voice coil support"
 	depends on GPIOLIB && I2C && VIDEO_DEV
@@ -641,6 +731,19 @@ config VIDEO_AK7375
 	  AK7375 is a 12 bit DAC with 120mA output current sink
 	  capability. This is designed for linear control of
 	  voice coil motors, controlled via I2C serial interface.
+
+config VIDEO_BU64754
+	tristate "BU64754 Motor Driver for Camera Autofocus"
+	depends on I2C && VIDEO_DEV
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_ASYNC
+	select V4L2_CCI_I2C
+	help
+	  This is a driver for the BU64754 Motor Driver for Camera
+	  Autofocus. The BU64754GWZ is an actuator driver IC which
+	  can be controlled the actuator position precisely using
+	  with internal Hall Sensor.
 
 config VIDEO_DW9714
 	tristate "DW9714 lens voice coil support"
@@ -1205,6 +1308,18 @@ config VIDEO_TW9910
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called tw9910.
+
+config VIDEO_IRS1125
+	tristate "Infineon IRS1125 sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor-level driver for the Infineon
+	  IRS1125 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called irs1125.
 
 config VIDEO_VPX3220
 	tristate "vpx3220a, vpx3216b & vpx3214c video decoders"

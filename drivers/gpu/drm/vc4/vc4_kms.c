@@ -138,6 +138,11 @@ vc4_ctm_commit(struct vc4_dev *vc4, struct drm_atomic_state *state)
 	struct vc4_ctm_state *ctm_state = to_vc4_ctm_state(vc4->ctm_manager.state);
 	struct drm_color_ctm *ctm = ctm_state->ctm;
 
+	if (vc4->firmware_kms)
+		return;
+
+	WARN_ON_ONCE(vc4->gen > VC4_GEN_5);
+
 	if (ctm_state->fifo) {
 		HVS_WRITE(SCALER_OLEDCOEF2,
 			  VC4_SET_FIELD(vc4_ctm_s31_32_to_s0_9(ctm->matrix[0]),
@@ -213,6 +218,8 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 	struct drm_crtc *crtc;
 	unsigned int i;
 
+	WARN_ON_ONCE(vc4->gen != VC4_GEN_4);
+
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
@@ -255,6 +262,8 @@ static void vc5_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 	unsigned char mux;
 	unsigned int i;
 	u32 reg;
+
+	WARN_ON_ONCE(vc4->gen != VC4_GEN_5);
 
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
@@ -320,17 +329,59 @@ static void vc5_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 	}
 }
 
+static void vc6_hvs_pv_muxing_commit(struct vc4_dev *vc4,
+				     struct drm_atomic_state *state)
+{
+	struct vc4_hvs *hvs = vc4->hvs;
+	struct drm_crtc_state *crtc_state;
+	struct drm_crtc *crtc;
+	unsigned int i;
+
+	WARN_ON_ONCE(vc4->gen != VC4_GEN_6);
+
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
+		struct vc4_encoder *vc4_encoder;
+		struct drm_encoder *encoder;
+		unsigned char mux;
+		u32 reg;
+
+		if (!vc4_state->update_muxing)
+			continue;
+
+		if (vc4_state->assigned_channel != 1)
+			continue;
+
+		encoder = vc4_get_crtc_encoder(crtc, crtc_state);
+		vc4_encoder = to_vc4_encoder(encoder);
+		switch (vc4_encoder->type) {
+		case VC4_ENCODER_TYPE_HDMI1:
+			mux = 0;
+			break;
+
+		case VC4_ENCODER_TYPE_TXP1:
+			mux = 2;
+			break;
+
+		default:
+			break;
+		}
+
+		reg = HVS_READ(SCALER6_CONTROL);
+		HVS_WRITE(SCALER6_CONTROL,
+			  (reg & ~SCALER6_CONTROL_DSP1_TARGET_MASK) |
+			  VC4_SET_FIELD(mux, SCALER6_CONTROL_DSP1_TARGET));
+	}
+}
+
 static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 {
 	struct drm_device *dev = state->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_hvs *hvs = vc4->hvs;
-	struct drm_crtc_state *new_crtc_state;
 	struct vc4_hvs_state *new_hvs_state;
-	struct drm_crtc *crtc;
 	struct vc4_hvs_state *old_hvs_state;
 	unsigned int channel;
-	int i;
 
 	old_hvs_state = vc4_hvs_get_old_global_state(state);
 	if (WARN_ON(IS_ERR(old_hvs_state)))
@@ -340,14 +391,23 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	if (WARN_ON(IS_ERR(new_hvs_state)))
 		return;
 
-	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
-		struct vc4_crtc_state *vc4_crtc_state;
+	if (0 && vc4->gen < VC4_GEN_6) {
+		struct drm_crtc_state *new_crtc_state;
+		struct drm_crtc *crtc;
+		int i;
 
-		if (!new_crtc_state->commit)
-			continue;
+		for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
+			struct vc4_crtc_state *vc4_crtc_state;
 
-		vc4_crtc_state = to_vc4_crtc_state(new_crtc_state);
-		vc4_hvs_mask_underrun(hvs, vc4_crtc_state->assigned_channel);
+			if (vc4->firmware_kms)
+				continue;
+
+			if (!new_crtc_state->commit)
+				continue;
+
+			vc4_crtc_state = to_vc4_crtc_state(new_crtc_state);
+			vc4_hvs_mask_underrun(hvs, vc4_crtc_state->assigned_channel);
+		}
 	}
 
 	for (channel = 0; channel < HVS_NUM_CHANNELS; channel++) {
@@ -369,7 +429,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		old_hvs_state->fifo_state[channel].pending_commit = NULL;
 	}
 
-	if (vc4->is_vc5) {
+	if (vc4->gen == VC4_GEN_5 && !vc4->firmware_kms) {
 		unsigned long state_rate = max(old_hvs_state->core_clock_rate,
 					       new_hvs_state->core_clock_rate);
 		unsigned long core_rate = clamp_t(unsigned long, state_rate,
@@ -382,16 +442,33 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		 * modeset.
 		 */
 		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
+		WARN_ON(clk_set_min_rate(hvs->disp_clk, core_rate));
 	}
 
 	drm_atomic_helper_commit_modeset_disables(dev, state);
 
-	vc4_ctm_commit(vc4, state);
+	if (vc4->gen <= VC4_GEN_5)
+		vc4_ctm_commit(vc4, state);
 
-	if (vc4->is_vc5)
-		vc5_hvs_pv_muxing_commit(vc4, state);
-	else
-		vc4_hvs_pv_muxing_commit(vc4, state);
+	if (!vc4->firmware_kms) {
+		switch (vc4->gen) {
+		case VC4_GEN_4:
+			vc4_hvs_pv_muxing_commit(vc4, state);
+			break;
+
+		case VC4_GEN_5:
+			vc5_hvs_pv_muxing_commit(vc4, state);
+			break;
+
+		case VC4_GEN_6:
+			vc6_hvs_pv_muxing_commit(vc4, state);
+			break;
+
+		default:
+			drm_err(dev, "Unknown VC4 generation: %d", vc4->gen);
+			break;
+		}
+	}
 
 	drm_atomic_helper_commit_planes(dev, state,
 					DRM_PLANE_COMMIT_ACTIVE_ONLY);
@@ -406,7 +483,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 
 	drm_atomic_helper_cleanup_planes(dev, state);
 
-	if (vc4->is_vc5) {
+	if (vc4->gen == VC4_GEN_5 && !vc4->firmware_kms) {
 		unsigned long core_rate = min_t(unsigned long,
 						hvs->max_core_rate,
 						new_hvs_state->core_clock_rate);
@@ -418,6 +495,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		 * requirements.
 		 */
 		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
+		WARN_ON(clk_set_min_rate(hvs->disp_clk, core_rate));
 
 		drm_dbg(dev, "Core clock actual rate: %lu Hz\n",
 			clk_get_rate(hvs->core_clk));
@@ -426,10 +504,20 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 
 static int vc4_atomic_commit_setup(struct drm_atomic_state *state)
 {
+	struct drm_device *dev = state->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_crtc_state *crtc_state;
 	struct vc4_hvs_state *hvs_state;
 	struct drm_crtc *crtc;
 	unsigned int i;
+
+	/* We know for sure we don't want an async update here. Set
+	 * state->legacy_cursor_update to false to prevent
+	 * drm_atomic_helper_setup_commit() from auto-completing
+	 * commit->flip_done.
+	 */
+	if (!vc4->firmware_kms)
+		state->legacy_cursor_update = false;
 
 	hvs_state = vc4_hvs_get_new_global_state(state);
 	if (WARN_ON(IS_ERR(hvs_state)))
@@ -461,7 +549,7 @@ static struct drm_framebuffer *vc4_fb_create(struct drm_device *dev,
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_mode_fb_cmd2 mode_cmd_local;
 
-	if (WARN_ON_ONCE(vc4->is_vc5))
+	if (WARN_ON_ONCE(vc4->gen > VC4_GEN_4))
 		return ERR_PTR(-ENODEV);
 
 	/* If the user didn't specify a modifier, use the
@@ -799,12 +887,16 @@ static int cmp_vc4_crtc_hvs_output(const void *a, const void *b)
 static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
 				      struct drm_atomic_state *state)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(state->dev);
 	struct vc4_hvs_state *hvs_new_state;
 	struct drm_crtc **sorted_crtcs;
 	struct drm_crtc *crtc;
 	unsigned int unassigned_channels = 0;
 	unsigned int i;
 	int ret;
+
+	if (vc4->firmware_kms)
+		return 0;
 
 	hvs_new_state = vc4_hvs_get_global_state(state);
 	if (IS_ERR(hvs_new_state))
@@ -1040,7 +1132,7 @@ int vc4_kms_load(struct drm_device *dev)
 	 * the BCM2711, but the load tracker computations are used for
 	 * the core clock rate calculation.
 	 */
-	if (!vc4->is_vc5) {
+	if (vc4->gen == VC4_GEN_4) {
 		/* Start with the load tracker enabled. Can be
 		 * disabled through the debugfs load_tracker file.
 		 */
@@ -1056,7 +1148,10 @@ int vc4_kms_load(struct drm_device *dev)
 		return ret;
 	}
 
-	if (vc4->is_vc5) {
+	if (vc4->gen >= VC4_GEN_6) {
+		dev->mode_config.max_width = 8192;
+		dev->mode_config.max_height = 8192;
+	} else if (vc4->gen >= VC4_GEN_5) {
 		dev->mode_config.max_width = 7680;
 		dev->mode_config.max_height = 7680;
 	} else {
@@ -1064,7 +1159,7 @@ int vc4_kms_load(struct drm_device *dev)
 		dev->mode_config.max_height = 2048;
 	}
 
-	dev->mode_config.funcs = vc4->is_vc5 ? &vc5_mode_funcs : &vc4_mode_funcs;
+	dev->mode_config.funcs = (vc4->gen > VC4_GEN_4) ? &vc5_mode_funcs : &vc4_mode_funcs;
 	dev->mode_config.helper_private = &vc4_mode_config_helpers;
 	dev->mode_config.preferred_depth = 24;
 	dev->mode_config.async_page_flip = true;

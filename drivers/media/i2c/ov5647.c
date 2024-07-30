@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/videodev2.h>
 #include <media/v4l2-ctrls.h>
@@ -54,6 +55,8 @@
 #define OV5647_REG_GAIN_LO		0x350b
 #define OV5647_REG_VTS_HI		0x380e
 #define OV5647_REG_VTS_LO		0x380f
+#define OV5647_REG_VFLIP		0x3820
+#define OV5647_REG_HFLIP		0x3821
 #define OV5647_REG_FRAME_OFF_NUMBER	0x4202
 #define OV5647_REG_MIPI_CTRL00		0x4800
 #define OV5647_REG_MIPI_CTRL14		0x4814
@@ -69,17 +72,26 @@
 #define OV5647_NATIVE_HEIGHT		1956U
 
 #define OV5647_PIXEL_ARRAY_LEFT		16U
-#define OV5647_PIXEL_ARRAY_TOP		16U
+#define OV5647_PIXEL_ARRAY_TOP		6U
 #define OV5647_PIXEL_ARRAY_WIDTH	2592U
 #define OV5647_PIXEL_ARRAY_HEIGHT	1944U
 
-#define OV5647_VBLANK_MIN		4
+#define OV5647_VBLANK_MIN		24
 #define OV5647_VTS_MAX			32767
 
 #define OV5647_EXPOSURE_MIN		4
 #define OV5647_EXPOSURE_STEP		1
 #define OV5647_EXPOSURE_DEFAULT		1000
 #define OV5647_EXPOSURE_MAX		65535
+
+/* regulator supplies */
+static const char * const ov5647_supply_names[] = {
+	"avdd",		/* Analog power */
+	"dovdd",	/* Digital I/O power */
+	"dvdd",		/* Digital core power */
+};
+
+#define OV5647_NUM_SUPPLIES ARRAY_SIZE(ov5647_supply_names)
 
 struct regval_list {
 	u16 addr;
@@ -102,6 +114,7 @@ struct ov5647 {
 	struct mutex			lock;
 	struct clk			*xclk;
 	struct gpio_desc		*pwdn;
+	struct regulator_bulk_data supplies[OV5647_NUM_SUPPLIES];
 	bool				clock_ncont;
 	struct v4l2_ctrl_handler	ctrls;
 	const struct ov5647_mode	*mode;
@@ -109,6 +122,8 @@ struct ov5647 {
 	struct v4l2_ctrl		*hblank;
 	struct v4l2_ctrl		*vblank;
 	struct v4l2_ctrl		*exposure;
+	struct v4l2_ctrl		*hflip;
+	struct v4l2_ctrl		*vflip;
 	bool				streaming;
 };
 
@@ -151,7 +166,7 @@ static struct regval_list ov5647_2592x1944_10bpp[] = {
 	{0x3036, 0x69},
 	{0x303c, 0x11},
 	{0x3106, 0xf5},
-	{0x3821, 0x06},
+	{0x3821, 0x00},
 	{0x3820, 0x00},
 	{0x3827, 0xec},
 	{0x370c, 0x03},
@@ -240,7 +255,7 @@ static struct regval_list ov5647_1080p30_10bpp[] = {
 	{0x3036, 0x62},
 	{0x303c, 0x11},
 	{0x3106, 0xf5},
-	{0x3821, 0x06},
+	{0x3821, 0x00},
 	{0x3820, 0x00},
 	{0x3827, 0xec},
 	{0x370c, 0x03},
@@ -404,7 +419,7 @@ static struct regval_list ov5647_2x2binned_10bpp[] = {
 	{0x4800, 0x24},
 	{0x3503, 0x03},
 	{0x3820, 0x41},
-	{0x3821, 0x07},
+	{0x3821, 0x01},
 	{0x350a, 0x00},
 	{0x350b, 0x10},
 	{0x3500, 0x00},
@@ -420,7 +435,7 @@ static struct regval_list ov5647_640x480_10bpp[] = {
 	{0x3035, 0x11},
 	{0x3036, 0x46},
 	{0x303c, 0x11},
-	{0x3821, 0x07},
+	{0x3821, 0x01},
 	{0x3820, 0x41},
 	{0x370c, 0x03},
 	{0x3612, 0x59},
@@ -509,7 +524,7 @@ static const struct ov5647_mode ov5647_modes[] = {
 	{
 		.format = {
 			.code		= MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace	= V4L2_COLORSPACE_SRGB,
+			.colorspace	= V4L2_COLORSPACE_RAW,
 			.field		= V4L2_FIELD_NONE,
 			.width		= 2592,
 			.height		= 1944
@@ -530,7 +545,7 @@ static const struct ov5647_mode ov5647_modes[] = {
 	{
 		.format = {
 			.code		= MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace	= V4L2_COLORSPACE_SRGB,
+			.colorspace	= V4L2_COLORSPACE_RAW,
 			.field		= V4L2_FIELD_NONE,
 			.width		= 1920,
 			.height		= 1080
@@ -551,7 +566,7 @@ static const struct ov5647_mode ov5647_modes[] = {
 	{
 		.format = {
 			.code		= MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace	= V4L2_COLORSPACE_SRGB,
+			.colorspace	= V4L2_COLORSPACE_RAW,
 			.field		= V4L2_FIELD_NONE,
 			.width		= 1296,
 			.height		= 972
@@ -572,7 +587,7 @@ static const struct ov5647_mode ov5647_modes[] = {
 	{
 		.format = {
 			.code		= MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace	= V4L2_COLORSPACE_SRGB,
+			.colorspace	= V4L2_COLORSPACE_RAW,
 			.field		= V4L2_FIELD_NONE,
 			.width		= 640,
 			.height		= 480
@@ -602,7 +617,13 @@ static int ov5647_write16(struct v4l2_subdev *sd, u16 reg, u16 val)
 	int ret;
 
 	ret = i2c_master_send(client, data, 4);
-	if (ret < 0) {
+	/*
+	 * Writing the wrong number of bytes also needs to be flagged as an
+	 * error. Success needs to produce a 0 return code.
+	 */
+	if (ret == 4) {
+		ret = 0;
+	} else {
 		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
 			__func__, reg);
 		return ret;
@@ -618,10 +639,17 @@ static int ov5647_write(struct v4l2_subdev *sd, u16 reg, u8 val)
 	int ret;
 
 	ret = i2c_master_send(client, data, 3);
-	if (ret < 0) {
+	/*
+	 * Writing the wrong number of bytes also needs to be flagged as an
+	 * error. Success needs to produce a 0 return code.
+	 */
+	if (ret == 3) {
+		ret = 0;
+	} else {
 		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
 				__func__, reg);
-		return ret;
+		if (ret >= 0)
+			ret = -EINVAL;
 	}
 
 	return 0;
@@ -778,6 +806,12 @@ static int ov5647_power_on(struct device *dev)
 
 	dev_dbg(dev, "OV5647 power on\n");
 
+	ret = regulator_bulk_enable(OV5647_NUM_SUPPLIES, sensor->supplies);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable regulators\n");
+		return ret;
+	}
+
 	if (sensor->pwdn) {
 		gpiod_set_value_cansleep(sensor->pwdn, 0);
 		msleep(PWDN_ACTIVE_DELAY_MS);
@@ -809,6 +843,7 @@ error_clk_disable:
 	clk_disable_unprepare(sensor->xclk);
 error_pwdn:
 	gpiod_set_value_cansleep(sensor->pwdn, 1);
+	regulator_bulk_disable(OV5647_NUM_SUPPLIES, sensor->supplies);
 
 	return ret;
 }
@@ -838,6 +873,7 @@ static int ov5647_power_off(struct device *dev)
 
 	clk_disable_unprepare(sensor->xclk);
 	gpiod_set_value_cansleep(sensor->pwdn, 1);
+	regulator_bulk_disable(OV5647_NUM_SUPPLIES, sensor->supplies);
 
 	return 0;
 }
@@ -874,6 +910,8 @@ static const struct v4l2_subdev_core_ops ov5647_subdev_core_ops = {
 	.g_register		= ov5647_sensor_get_register,
 	.s_register		= ov5647_sensor_set_register,
 #endif
+	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
+	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
 static const struct v4l2_rect *
@@ -939,6 +977,25 @@ static const struct v4l2_subdev_video_ops ov5647_subdev_video_ops = {
 	.s_stream =		ov5647_s_stream,
 };
 
+/* This function returns the mbus code for the current settings of the
+   HFLIP and VFLIP controls. */
+
+static u32 ov5647_get_mbus_code(struct v4l2_subdev *sd)
+{
+	struct ov5647 *sensor = to_sensor(sd);
+	/* The control values are only 0 or 1. */
+	int index =  sensor->hflip->val | (sensor->vflip->val << 1);
+
+	static const u32 codes[4] = {
+		MEDIA_BUS_FMT_SGBRG10_1X10,
+		MEDIA_BUS_FMT_SBGGR10_1X10,
+		MEDIA_BUS_FMT_SRGGB10_1X10,
+		MEDIA_BUS_FMT_SGRBG10_1X10
+	};
+
+	return codes[index];
+}
+
 static int ov5647_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_mbus_code_enum *code)
@@ -946,7 +1003,7 @@ static int ov5647_enum_mbus_code(struct v4l2_subdev *sd,
 	if (code->index > 0)
 		return -EINVAL;
 
-	code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	code->code = ov5647_get_mbus_code(sd);
 
 	return 0;
 }
@@ -957,7 +1014,7 @@ static int ov5647_enum_frame_size(struct v4l2_subdev *sd,
 {
 	const struct v4l2_mbus_framefmt *fmt;
 
-	if (fse->code != MEDIA_BUS_FMT_SBGGR10_1X10 ||
+	if (fse->code != ov5647_get_mbus_code(sd) ||
 	    fse->index >= ARRAY_SIZE(ov5647_modes))
 		return -EINVAL;
 
@@ -990,6 +1047,8 @@ static int ov5647_get_pad_fmt(struct v4l2_subdev *sd,
 	}
 
 	*fmt = *sensor_format;
+	/* The code we pass back must reflect the current h/vflips. */
+	fmt->code = ov5647_get_mbus_code(sd);
 	mutex_unlock(&sensor->lock);
 
 	return 0;
@@ -1037,6 +1096,8 @@ static int ov5647_set_pad_fmt(struct v4l2_subdev *sd,
 					 exposure_def);
 	}
 	*fmt = mode->format;
+	/* The code we pass back must reflect the current h/vflips. */
+	fmt->code = ov5647_get_mbus_code(sd);
 	mutex_unlock(&sensor->lock);
 
 	return 0;
@@ -1212,6 +1273,25 @@ static int ov5647_s_exposure(struct v4l2_subdev *sd, u32 val)
 	return ov5647_write(sd, OV5647_REG_EXP_LO, (val & 0xf) << 4);
 }
 
+static int ov5647_s_flip( struct v4l2_subdev *sd, u16 reg, u32 ctrl_val)
+{
+	int ret;
+	u8 reg_val;
+
+	/* Set or clear bit 1 and leave everything else alone. */
+	ret = ov5647_read(sd, reg, &reg_val);
+	if (ret == 0) {
+		if (ctrl_val)
+			reg_val |= 2;
+		else
+			reg_val &= ~2;
+
+		ret = ov5647_write(sd, reg, reg_val);
+	}
+
+	return ret;
+}
+
 static int ov5647_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct ov5647 *sensor = container_of(ctrl->handler,
@@ -1274,6 +1354,14 @@ static int ov5647_s_ctrl(struct v4l2_ctrl *ctrl)
 		/* Read-only, but we adjust it based on mode. */
 		break;
 
+	case V4L2_CID_HFLIP:
+		/* There's an in-built hflip in the sensor, so account for that here. */
+		ov5647_s_flip(sd, OV5647_REG_HFLIP, !ctrl->val);
+		break;
+	case V4L2_CID_VFLIP:
+		ov5647_s_flip(sd, OV5647_REG_VFLIP, ctrl->val);
+		break;
+
 	default:
 		dev_info(&client->dev,
 			 "Control (id:0x%x, val:0x%x) not supported\n",
@@ -1290,10 +1378,23 @@ static const struct v4l2_ctrl_ops ov5647_ctrl_ops = {
 	.s_ctrl = ov5647_s_ctrl,
 };
 
-static int ov5647_init_controls(struct ov5647 *sensor)
+static int ov5647_configure_regulators(struct device *dev,
+				       struct ov5647 *sensor)
+{
+	unsigned int i;
+
+	for (i = 0; i < OV5647_NUM_SUPPLIES; i++)
+		sensor->supplies[i].supply = ov5647_supply_names[i];
+
+	return devm_regulator_bulk_get(dev, OV5647_NUM_SUPPLIES,
+				       sensor->supplies);
+}
+
+static int ov5647_init_controls(struct ov5647 *sensor, struct device *dev)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&sensor->sd);
 	int hblank, exposure_max, exposure_def;
+	struct v4l2_fwnode_device_properties props;
 
 	v4l2_ctrl_handler_init(&sensor->ctrls, 9);
 
@@ -1343,6 +1444,21 @@ static int ov5647_init_controls(struct ov5647 *sensor)
 				     V4L2_CID_TEST_PATTERN,
 				     ARRAY_SIZE(ov5647_test_pattern_menu) - 1,
 				     0, 0, ov5647_test_pattern_menu);
+
+	sensor->hflip = v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
+					  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	if (sensor->hflip)
+		sensor->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	sensor->vflip = v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
+					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	if (sensor->vflip)
+		sensor->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	v4l2_fwnode_device_parse(dev, &props);
+
+	v4l2_ctrl_new_fwnode_properties(&sensor->ctrls, &ov5647_ctrl_ops,
+					&props);
 
 	if (sensor->ctrls.error)
 		goto handler_free;
@@ -1426,11 +1542,17 @@ static int ov5647_probe(struct i2c_client *client)
 		return -EINVAL;
 	}
 
+	ret = ov5647_configure_regulators(dev, sensor);
+	if (ret) {
+		dev_err(dev, "Failed to get power regulators\n");
+		return ret;
+	}
+
 	mutex_init(&sensor->lock);
 
 	sensor->mode = OV5647_DEFAULT_MODE;
 
-	ret = ov5647_init_controls(sensor);
+	ret = ov5647_init_controls(sensor, dev);
 	if (ret)
 		goto mutex_destroy;
 
@@ -1453,7 +1575,7 @@ static int ov5647_probe(struct i2c_client *client)
 	if (ret < 0)
 		goto power_off;
 
-	ret = v4l2_async_register_subdev(sd);
+	ret = v4l2_async_register_subdev_sensor(sd);
 	if (ret < 0)
 		goto power_off;
 

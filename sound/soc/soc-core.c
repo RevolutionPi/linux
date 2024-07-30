@@ -1080,7 +1080,7 @@ static int snd_soc_add_pcm_runtime(struct snd_soc_card *card,
 	for_each_link_cpus(dai_link, i, cpu) {
 		asoc_rtd_to_cpu(rtd, i) = snd_soc_find_dai(cpu);
 		if (!asoc_rtd_to_cpu(rtd, i)) {
-			dev_info(card->dev, "ASoC: CPU DAI %s not registered\n",
+			dev_info(card->dev, "ASoC: CPU DAI %s not registered - will retry\n",
 				 cpu->dai_name);
 			goto _err_defer;
 		}
@@ -1091,7 +1091,7 @@ static int snd_soc_add_pcm_runtime(struct snd_soc_card *card,
 	for_each_link_codecs(dai_link, i, codec) {
 		asoc_rtd_to_codec(rtd, i) = snd_soc_find_dai(codec);
 		if (!asoc_rtd_to_codec(rtd, i)) {
-			dev_info(card->dev, "ASoC: CODEC DAI %s not registered\n",
+			dev_info(card->dev, "ASoC: CODEC DAI %s not registered- will retry\n",
 				 codec->dai_name);
 			goto _err_defer;
 		}
@@ -1316,7 +1316,15 @@ int snd_soc_runtime_set_dai_fmt(struct snd_soc_pcm_runtime *rtd,
 		return 0;
 
 	for_each_rtd_codec_dais(rtd, i, codec_dai) {
-		ret = snd_soc_dai_set_fmt(codec_dai, dai_fmt);
+		unsigned int codec_dai_fmt = dai_fmt;
+
+		// there can only be one master when using multiple codecs
+		if (i && (codec_dai_fmt & SND_SOC_DAIFMT_MASTER_MASK)) {
+			codec_dai_fmt &= ~SND_SOC_DAIFMT_MASTER_MASK;
+			codec_dai_fmt |= SND_SOC_DAIFMT_CBS_CFS;
+		}
+
+		ret = snd_soc_dai_set_fmt(codec_dai, codec_dai_fmt);
 		if (ret != 0 && ret != -ENOTSUPP)
 			return ret;
 	}

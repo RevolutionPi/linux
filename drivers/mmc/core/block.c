@@ -171,6 +171,13 @@ static DEFINE_MUTEX(open_lock);
 module_param(perdev_minors, int, 0444);
 MODULE_PARM_DESC(perdev_minors, "Minors numbers to allocate per device");
 
+/*
+ * Allow quirks to be overridden for the current card
+ */
+static char *card_quirks;
+module_param(card_quirks, charp, 0644);
+MODULE_PARM_DESC(card_quirks, "Force the use of the indicated quirks (a bitfield)");
+
 static inline int mmc_blk_part_switch(struct mmc_card *card,
 				      unsigned int part_type);
 static void mmc_blk_rw_rq_prep(struct mmc_queue_req *mqrq,
@@ -880,7 +887,10 @@ static int mmc_blk_part_switch_pre(struct mmc_card *card,
 
 	if ((part_type & mask) == rpmb) {
 		if (card->ext_csd.cmdq_en) {
-			ret = mmc_cmdq_disable(card);
+			if (mmc_card_sd(card))
+				ret = mmc_sd_cmdq_disable(card);
+			else
+				ret = mmc_cmdq_disable(card);
 			if (ret)
 				return ret;
 		}
@@ -899,8 +909,12 @@ static int mmc_blk_part_switch_post(struct mmc_card *card,
 
 	if ((part_type & mask) == rpmb) {
 		mmc_retune_unpause(card->host);
-		if (card->reenable_cmdq && !card->ext_csd.cmdq_en)
-			ret = mmc_cmdq_enable(card);
+		if (card->reenable_cmdq && !card->ext_csd.cmdq_en) {
+			if (mmc_card_sd(card))
+				ret = mmc_sd_cmdq_enable(card);
+			else
+				ret = mmc_cmdq_enable(card);
+		}
 	}
 
 	return ret;
@@ -1096,7 +1110,10 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 	switch (mq_rq->drv_op) {
 	case MMC_DRV_OP_IOCTL:
 		if (card->ext_csd.cmdq_en) {
-			ret = mmc_cmdq_disable(card);
+			if (mmc_card_sd(card))
+				ret = mmc_sd_cmdq_disable(card);
+			else
+				ret = mmc_cmdq_disable(card);
 			if (ret)
 				break;
 		}
@@ -1114,8 +1131,12 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 		/* Always switch back to main area after RPMB access */
 		if (rpmb_ioctl)
 			mmc_blk_part_switch(card, 0);
-		else if (card->reenable_cmdq && !card->ext_csd.cmdq_en)
-			mmc_cmdq_enable(card);
+		else if (card->reenable_cmdq && !card->ext_csd.cmdq_en) {
+			if (mmc_card_sd(card))
+				mmc_sd_cmdq_enable(card);
+			else
+				mmc_cmdq_enable(card);
+		}
 		break;
 	case MMC_DRV_OP_BOOT_WP:
 		ret = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_BOOT_WP,
@@ -1534,6 +1555,8 @@ static void mmc_blk_cqe_complete_rq(struct mmc_queue *mq, struct request *req)
 
 	spin_lock_irqsave(&mq->lock, flags);
 
+	if (req_op(req) == REQ_OP_WRITE)
+		mq->pending_writes--;
 	mq->in_flight[issue_type] -= 1;
 
 	put_card = (mmc_tot_in_flight(mq) == 0);
@@ -1942,7 +1965,7 @@ static void mmc_blk_mq_rw_recovery(struct mmc_queue *mq, struct request *req)
 		return;
 	}
 
-	if (rq_data_dir(req) == READ && brq->data.blocks >
+	if (0 && rq_data_dir(req) == READ && brq->data.blocks >
 			queue_physical_block_size(mq->queue) >> 9) {
 		/* Read one (native) sector at a time */
 		mmc_blk_read_single(mq, req);
@@ -2050,6 +2073,8 @@ static void mmc_blk_mq_complete_rq(struct mmc_queue *mq, struct request *req)
 	struct mmc_queue_req *mqrq = req_to_mmc_queue_req(req);
 	unsigned int nr_bytes = mqrq->brq.data.bytes_xfered;
 
+	if (req_op(req) == REQ_OP_WRITE)
+		mq->pending_writes--;
 	if (nr_bytes) {
 		if (blk_update_request(req, BLK_STS_OK, nr_bytes))
 			blk_mq_requeue_request(req, true);
@@ -2144,13 +2169,16 @@ static void mmc_blk_mq_poll_completion(struct mmc_queue *mq,
 	mmc_blk_urgent_bkops(mq, mqrq);
 }
 
-static void mmc_blk_mq_dec_in_flight(struct mmc_queue *mq, enum mmc_issue_type issue_type)
+static void mmc_blk_mq_dec_in_flight(struct mmc_queue *mq, enum mmc_issue_type issue_type,
+				     struct request *req)
 {
 	unsigned long flags;
 	bool put_card;
 
 	spin_lock_irqsave(&mq->lock, flags);
 
+	if (req_op(req) == REQ_OP_WRITE)
+		mq->pending_writes--;
 	mq->in_flight[issue_type] -= 1;
 
 	put_card = (mmc_tot_in_flight(mq) == 0);
@@ -2184,7 +2212,7 @@ static void mmc_blk_mq_post_req(struct mmc_queue *mq, struct request *req,
 			blk_mq_complete_request(req);
 	}
 
-	mmc_blk_mq_dec_in_flight(mq, issue_type);
+	mmc_blk_mq_dec_in_flight(mq, issue_type, req);
 }
 
 void mmc_blk_mq_recovery(struct mmc_queue *mq)
@@ -3008,6 +3036,8 @@ static int mmc_blk_probe(struct mmc_card *card)
 {
 	struct mmc_blk_data *md;
 	int ret = 0;
+	char quirk_str[24];
+	char cap_str[10];
 
 	/*
 	 * Check that the card supports the command class(es) we need.
@@ -3015,7 +3045,16 @@ static int mmc_blk_probe(struct mmc_card *card)
 	if (!(card->csd.cmdclass & CCC_BLOCK_READ))
 		return -ENODEV;
 
-	mmc_fixup_device(card, mmc_blk_fixups);
+	if (card_quirks) {
+		unsigned long quirks;
+		if (kstrtoul(card_quirks, 0, &quirks) == 0)
+			card->quirks = (unsigned int)quirks;
+		else
+			pr_err("mmc_block: Invalid card_quirks parameter '%s'\n",
+			       card_quirks);
+	}
+	else
+		mmc_fixup_device(card, mmc_blk_fixups);
 
 	card->complete_wq = alloc_workqueue("mmc_complete",
 					WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
@@ -3029,6 +3068,17 @@ static int mmc_blk_probe(struct mmc_card *card)
 		ret = PTR_ERR(md);
 		goto out_free;
 	}
+
+	string_get_size((u64)get_capacity(md->disk), 512, STRING_UNITS_2,
+			cap_str, sizeof(cap_str));
+	if (card->quirks)
+		snprintf(quirk_str, sizeof(quirk_str),
+			 " (quirks 0x%08x)", card->quirks);
+	else
+		quirk_str[0] = '\0';
+	pr_info("%s: %s %s %s%s%s\n",
+		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
+		cap_str, md->read_only ? " (ro)" : "", quirk_str);
 
 	ret = mmc_blk_alloc_parts(card, md);
 	if (ret)

@@ -1400,6 +1400,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int ep_index;
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_ring *ep_ring;
+	struct usb_interface_cache *intfc;
 	unsigned int max_packet;
 	enum xhci_ring_type ring_type;
 	u32 max_esit_payload;
@@ -1409,6 +1410,8 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int mult;
 	unsigned int avg_trb_len;
 	unsigned int err_count = 0;
+	unsigned int is_ums_dev = 0;
+	unsigned int i;
 
 	ep_index = xhci_get_endpoint_index(&ep->desc);
 	ep_ctx = xhci_get_ep_ctx(xhci, virt_dev->in_ctx, ep_index);
@@ -1440,8 +1443,34 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 
 	mult = xhci_get_endpoint_mult(udev, ep);
 	max_packet = usb_endpoint_maxp(&ep->desc);
-	max_burst = xhci_get_endpoint_max_burst(udev, ep);
 	avg_trb_len = max_esit_payload;
+
+	/*
+	 * VL805 errata - Bulk OUT bursts to superspeed mass-storage
+	 * devices behind hub ports can cause data corruption with
+	 * non-wMaxPacket-multiple transfers.
+	 */
+	for (i = 0; i < udev->config->desc.bNumInterfaces; i++) {
+		intfc = udev->config->intf_cache[i];
+		/*
+		 * Slight hack - look at interface altsetting 0, which
+		 * should be the UMS bulk-only interface. If the class
+		 * matches, then we disable out bursts for all OUT
+		 * endpoints because endpoint assignments may change
+		 * between alternate settings.
+		 */
+		if (intfc->altsetting[0].desc.bInterfaceClass ==
+		    USB_CLASS_MASS_STORAGE) {
+			is_ums_dev = 1;
+			break;
+		}
+	}
+	if (xhci->quirks & XHCI_VLI_SS_BULK_OUT_BUG &&
+	    usb_endpoint_is_bulk_out(&ep->desc) && is_ums_dev &&
+	    udev->route)
+		max_burst = 0;
+	else
+		max_burst = xhci_get_endpoint_max_burst(udev, ep);
 
 	/* FIXME dig Mult and streams info out of ep companion desc */
 
@@ -2241,12 +2270,17 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, gfp_t flags)
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 	struct xhci_interrupter *ir;
 	int ret;
+	unsigned int nr_event_segs;
 
 	ir = kzalloc_node(sizeof(*ir), flags, dev_to_node(dev));
 	if (!ir)
 		return NULL;
 
-	ir->event_ring = xhci_ring_alloc(xhci, ERST_NUM_SEGS, 1, TYPE_EVENT,
+	nr_event_segs = min_t(unsigned int,
+			      1 << HCS_ERST_MAX(xhci->hcs_params2),
+			      ERST_MAX_SEGS);
+
+	ir->event_ring = xhci_ring_alloc(xhci, nr_event_segs, 1, TYPE_EVENT,
 					0, flags);
 	if (!ir->event_ring) {
 		xhci_warn(xhci, "Failed to allocate interrupter event ring\n");
@@ -2283,7 +2317,7 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 	/* set ERST count with the number of entries in the segment table */
 	erst_size = readl(&ir->ir_set->erst_size);
 	erst_size &= ERST_SIZE_MASK;
-	erst_size |= ERST_NUM_SEGS;
+	erst_size |= ir->event_ring->num_segs;
 	writel(erst_size, &ir->ir_set->erst_size);
 
 	erst_base = xhci_read_64(xhci, &ir->ir_set->erst_base);

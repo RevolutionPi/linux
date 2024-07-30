@@ -61,9 +61,10 @@ static const struct drm_display_mode default_mode = {
 	DRM_SIMPLE_MODE(640, 480, 64, 48)
 };
 
-int vc4_mock_atomic_add_output(struct kunit *test,
-			       struct drm_atomic_state *state,
-			       enum vc4_encoder_type type)
+struct vc4_dummy_output *
+vc4_mock_atomic_add_output(struct kunit *test,
+			   struct drm_atomic_state *state,
+			   enum vc4_encoder_type type)
 {
 	struct drm_device *drm = state->dev;
 	struct drm_connector_state *conn_state;
@@ -77,7 +78,7 @@ int vc4_mock_atomic_add_output(struct kunit *test,
 	encoder = vc4_find_encoder_by_type(drm, type);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, encoder);
 
-	crtc = vc4_find_crtc_for_encoder(test, drm, encoder);
+	crtc = vc4_find_crtc_for_encoder(test, encoder);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, crtc);
 
 	output = encoder_to_vc4_dummy_output(encoder);
@@ -96,7 +97,7 @@ int vc4_mock_atomic_add_output(struct kunit *test,
 
 	crtc_state->active = true;
 
-	return 0;
+	return output;
 }
 
 int vc4_mock_atomic_del_output(struct kunit *test,
@@ -115,7 +116,7 @@ int vc4_mock_atomic_del_output(struct kunit *test,
 	encoder = vc4_find_encoder_by_type(drm, type);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, encoder);
 
-	crtc = vc4_find_crtc_for_encoder(test, drm, encoder);
+	crtc = vc4_find_crtc_for_encoder(test, encoder);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, crtc);
 
 	crtc_state = drm_atomic_get_crtc_state(state, crtc);

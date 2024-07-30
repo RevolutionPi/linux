@@ -424,17 +424,12 @@ spidev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		else
 			retval = get_user(tmp, (u32 __user *)arg);
 		if (retval == 0) {
-			struct spi_controller *ctlr = spi->controller;
 			u32	save = spi->mode;
 
 			if (tmp & ~SPI_MODE_MASK) {
 				retval = -EINVAL;
 				break;
 			}
-
-			if (ctlr->use_gpio_descriptors && ctlr->cs_gpiods &&
-			    ctlr->cs_gpiods[spi_get_chipselect(spi, 0)])
-				tmp |= SPI_CS_HIGH;
 
 			tmp |= spi->mode & ~SPI_MODE_MASK;
 			spi->mode = tmp & SPI_MODE_USER_MASK;
@@ -704,6 +699,7 @@ static const struct file_operations spidev_fops = {
 static struct class *spidev_class;
 
 static const struct spi_device_id spidev_spi_ids[] = {
+	{ .name = "spidev" },
 	{ .name = "dh2228fv" },
 	{ .name = "ltc2488" },
 	{ .name = "sx1301" },
@@ -724,7 +720,7 @@ MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
  */
 static int spidev_of_check(struct device *dev)
 {
-	if (device_property_match_string(dev, "compatible", "spidev") < 0)
+	if (1 || device_property_match_string(dev, "compatible", "spidev") < 0)
 		return 0;
 
 	dev_err(dev, "spidev listed directly in DT is not supported\n");

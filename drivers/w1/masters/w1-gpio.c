@@ -30,7 +30,7 @@ static u8 w1_gpio_set_pullup(void *data, int delay)
 			 * This will OVERRIDE open drain emulation and force-pull
 			 * the line high for some time.
 			 */
-			gpiod_set_raw_value(pdata->gpiod, 1);
+			gpiod_direction_output_raw(pdata->gpiod, 1);
 			msleep(pdata->pullup_duration);
 			/*
 			 * This will simply set the line as input since we are doing
@@ -76,6 +76,11 @@ static int w1_gpio_probe(struct platform_device *pdev)
 	enum gpiod_flags gflags = GPIOD_OUT_LOW_OPEN_DRAIN;
 	int err;
 
+	master = devm_kzalloc(dev, sizeof(struct w1_bus_master),
+			GFP_KERNEL);
+	if (!master)
+		return -ENOMEM;
+
 	if (of_have_populated_dt()) {
 		pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 		if (!pdata)
@@ -90,6 +95,9 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		if (of_property_present(np, "linux,open-drain"))
 			gflags = GPIOD_OUT_LOW;
 
+		if (of_property_present(np, "raspberrypi,delay-needs-poll"))
+			master->delay_needs_poll = true;
+
 		pdev->dev.platform_data = pdata;
 	}
 	pdata = dev_get_platdata(dev);
@@ -98,11 +106,6 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		dev_err(dev, "No configuration data\n");
 		return -ENXIO;
 	}
-
-	master = devm_kzalloc(dev, sizeof(struct w1_bus_master),
-			GFP_KERNEL);
-	if (!master)
-		return -ENOMEM;
 
 	pdata->gpiod = devm_gpiod_get_index(dev, NULL, 0, gflags);
 	if (IS_ERR(pdata->gpiod)) {

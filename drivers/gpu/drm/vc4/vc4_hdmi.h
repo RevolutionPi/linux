@@ -2,8 +2,10 @@
 #define _VC4_HDMI_H_
 
 #include <drm/drm_connector.h>
+#include <linux/mutex.h>
 #include <media/cec.h>
 #include <sound/dmaengine_pcm.h>
+#include <sound/hdmi-codec.h>
 #include <sound/soc.h>
 
 #include "vc4_drv.h"
@@ -47,6 +49,10 @@ struct vc4_hdmi_variant {
 
 	/* The BCM2711 cannot deal with odd horizontal pixel timings */
 	bool unsupported_odd_h_timings;
+	/* The BCM2712 can handle odd horizontal pixel timings, but not in
+	 * interlaced modes
+	 */
+	bool unsupported_int_odd_h_timings;
 
 	/*
 	 * The BCM2711 CEC/hotplug IRQ controller is shared between the
@@ -111,6 +117,7 @@ struct vc4_hdmi_audio {
 };
 
 enum vc4_hdmi_output_format {
+	VC4_HDMI_OUTPUT_AUTO,
 	VC4_HDMI_OUTPUT_RGB,
 	VC4_HDMI_OUTPUT_YUV422,
 	VC4_HDMI_OUTPUT_YUV444,
@@ -136,6 +143,7 @@ struct vc4_hdmi {
 	struct delayed_work scrambling_work;
 
 	struct drm_property *broadcast_rgb_property;
+	struct drm_property *output_format_property;
 
 	struct i2c_adapter *ddc;
 	void __iomem *hdmicore_regs;
@@ -228,6 +236,36 @@ struct vc4_hdmi {
 	 * for use outside of KMS hooks. Protected by @mutex.
 	 */
 	enum vc4_hdmi_output_format output_format;
+	/**
+	 * @requested_output_format: Copy of @vc4_connector_state.requested_output_format
+	 * for use outside of KMS hooks. Protected by @mutex.
+	 */
+	enum vc4_hdmi_output_format requested_output_format;
+
+	/**
+	 * @plugged_cb: Callback provided by hdmi-codec to indicate that an
+	 * HDMI hotplug occurred and jack state should be updated. Protected by
+	 * @update_plugged_status_lock.
+	 */
+	hdmi_codec_plugged_cb plugged_cb;
+
+	/**
+	 * @plugged_cb: Context for plugged_cb. Protected by
+	 * @update_plugged_status_lock.
+	 */
+	struct device *codec_dev;
+
+	/**
+	 * @update_plugged_status_lock: Prevents a race condition where an HDMI
+	 * hotplug might occur between @plugged_cb and @codec_dev being set.
+	 */
+	struct mutex update_plugged_status_lock;
+
+	/**
+	 * @hdmi_jack: Represents the connection state of the HDMI plug, for
+	 * ALSA jack detection.
+	 */
+	struct snd_soc_jack hdmi_jack;
 };
 
 #define connector_to_vc4_hdmi(_connector)				\
@@ -246,6 +284,7 @@ struct vc4_hdmi_connector_state {
 	unsigned int 			output_bpc;
 	enum vc4_hdmi_output_format	output_format;
 	enum vc4_hdmi_broadcast_rgb	broadcast_rgb;
+	enum vc4_hdmi_output_format	requested_output_format;
 };
 
 #define conn_state_to_vc4_hdmi_conn_state(_state)			\
@@ -262,5 +301,9 @@ void vc5_hdmi_phy_init(struct vc4_hdmi *vc4_hdmi,
 void vc5_hdmi_phy_disable(struct vc4_hdmi *vc4_hdmi);
 void vc5_hdmi_phy_rng_enable(struct vc4_hdmi *vc4_hdmi);
 void vc5_hdmi_phy_rng_disable(struct vc4_hdmi *vc4_hdmi);
+
+void vc6_hdmi_phy_init(struct vc4_hdmi *vc4_hdmi,
+		       struct vc4_hdmi_connector_state *vc4_conn_state);
+void vc6_hdmi_phy_disable(struct vc4_hdmi *vc4_hdmi);
 
 #endif /* _VC4_HDMI_H_ */
