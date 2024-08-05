@@ -1,0 +1,57 @@
+Source: linux-revpi-v8
+Section: kernel
+Priority: optional
+Maintainer: KUNBUS GmbH <support@kunbus.com>
+Rules-Requires-Root: no
+Build-Depends: debhelper-compat (= 12)
+Build-Depends-Arch: bc, bison, cpio, flex, kmod, libelf-dev:native, libssl-dev:native, rsync
+Homepage: https://www.kernel.org/
+Standards-Version: 4.6.2
+
+Package: linux-image-6.6.0-revpi0-rpi-v8
+Depends: kmod, linux-base (>= 4.3~)
+Architecture: arm64
+Description: Linux kernel, version 6.6.0-revpi0-rpi-v8
+ This package contains the Linux kernel, modules and corresponding other
+ files, version: 6.6.0-revpi0-rpi-v8.
+
+Package: linux-image-revpi-v8
+Section: kernel
+Provides: linux-image-generic, wireguard-modules (= 1.0.0)
+Depends: linux-image-6.6.0-revpi0-rpi-v8 (= 6.6.43-rt38-revpi0-1+deb12+1)
+Architecture: arm64
+Description: This package depends on the latest Linux kernel and modules for use on
+ Revolution Pi devices.
+
+Package: linux-libc-dev
+Section: devel
+Provides: linux-kernel-headers
+Architecture: arm64
+Description: Linux support headers for userspace development
+ This package provides userspaces headers from the Linux kernel.  These headers
+ are used by the installed headers for GNU glibc and other system libraries.
+Multi-Arch: same
+
+Package: linux-headers-6.6.0-revpi0-rpi-v8
+Architecture: arm64
+Description: Linux kernel headers for 6.6.0-revpi0-rpi-v8 on arm64
+ This package provides kernel header files for 6.6.0-revpi0-rpi-v8 on arm64
+ .
+ This is useful for people who need to build external modules
+
+Package: linux-headers-revpi-v8
+Architecture: arm64
+Provides: linux-headers-generic
+Depends: linux-headers-6.6.0-revpi0-rpi-v8 (= 6.6.43-rt38-revpi0-1+deb12+1)
+Description: Linux kernel headers for Revolution Pi devices
+ This package depends on the architecture-specific header files for the
+ latest Linux kernel arm64 configuration.
+ .
+ This is useful for people who need to build external modules
+
+Package: linux-image-6.6.0-revpi0-rpi-v8-dbg
+Section: debug
+Architecture: arm64
+Description: Linux kernel debugging symbols for 6.6.0-revpi0-rpi-v8
+ This package will come in handy if you need to debug the kernel. It provides
+ all the necessary debug symbols for the kernel and its modules.
