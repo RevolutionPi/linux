@@ -26,6 +26,7 @@ EXTRA_MAKE_OPTS=""
 # the (.*) indicates that the upstream version can be appended with snapshot-specific string
 UPSTREAM_VERS_REGEX='^v\([[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\)-rt\([[:digit:]]\+\)-revpi\([[:digit:]]\+\).*'
 FORCE_CHANGELOG_GEN=""
+LINTIAN_OVERRIDES_FILE="debian/source/lintian-overrides"
 
 usage() {
 	cat <<- __EOF__
@@ -122,6 +123,35 @@ linux-libc-dev/
 !patches/*.patch
 !patches/series
 EOF
+
+cat <<- __EOF__ > "$LINTIAN_OVERRIDES_FILE"
+# The copyright notice in the GFDL itself, mentioning invariant sections, is
+# just an example. lintian seems to whitelist the plain-text version but that
+# doesn't cover this ReST version.
+__EOF__
+
+for file in \
+	Documentation/userspace-api/media/v4l/pixfmt-meta-bcm2835-isp-stats.rst \
+	Documentation/userspace-api/media/v4l/pixfmt-meta-sensor-data.rst \
+	Documentation/userspace-api/media/v4l/pixfmt-nv12-col128.rst \
+	Documentation/userspace-api/media/v4l/pixfmt-y12p.rst \
+	Documentation/userspace-api/media/v4l/pixfmt-y14p.rst
+do
+	cat <<- __EOF__ >> "$LINTIAN_OVERRIDES_FILE"
+	linux-revpi-v8 source: license-problem-gfdl-invariants \
+invariant part is: published by the free software .. foundation, with no \
+invariant sections, no front-cover texts .. and no back-cover texts \
+[$file]
+	__EOF__
+done
+
+cat <<- __EOF__ >> "$LINTIAN_OVERRIDES_FILE"
+linux-revpi-v8 source: license-problem-gfdl-invariants invariant part is: with \
+the :ref:\`invariant sections <fdl-invariant>\` being list their titles, with \
+the :ref:\`front-cover texts <fdl-cover-texts>\` being list, and with the \
+:ref:\`back-cover texts <fdl-cover-texts>\` being list \
+[Documentation/userspace-api/media/fdl-appendix.rst]
+__EOF__
 
 cat > debian/gbp.conf <<- __EOF__
 [DEFAULT]
