@@ -228,7 +228,8 @@ Section: kernel
 Provides: linux-image-generic, wireguard-modules (= 1.0.0)
 Depends: $packagename-$version (= $packageversion)
 Architecture: $debarch
-Description: This package depends on the latest Linux kernel and modules for use on
+Description: Linux kernel for Revolution Pi devices (meta-package)
+ This package depends on the latest Linux kernel and modules for use on
  Revolution Pi devices.
 EOF
 
@@ -264,7 +265,7 @@ Package: linux-headers$meta_pkg_append
 Architecture: $debarch
 Provides: linux-headers-generic
 Depends: linux-headers-$version (= $packageversion)
-Description: Linux kernel headers for Revolution Pi devices
+Description: Linux kernel headers for Revolution Pi devices (meta-package)
  This package depends on the architecture-specific header files for the
  latest Linux kernel $debarch configuration.
  .
