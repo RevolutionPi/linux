@@ -151,6 +151,10 @@ the :ref:\`invariant sections <fdl-invariant>\` being list their titles, with \
 the :ref:\`front-cover texts <fdl-cover-texts>\` being list, and with the \
 :ref:\`back-cover texts <fdl-cover-texts>\` being list \
 [Documentation/userspace-api/media/fdl-appendix.rst]
+
+# The custom compression is opt-in for local and test builds. Giving the option
+# is okay.
+linux-revpi-v8 source: custom-compression-in-debian-rules
 __EOF__
 
 cat > debian/gbp.conf <<- __EOF__
