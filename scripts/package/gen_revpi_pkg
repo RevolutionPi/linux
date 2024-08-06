@@ -155,6 +155,12 @@ the :ref:\`front-cover texts <fdl-cover-texts>\` being list, and with the \
 # The custom compression is opt-in for local and test builds. Giving the option
 # is okay.
 linux-revpi-v8 source: custom-compression-in-debian-rules
+
+# These executables are test cases and source is provided
+linux-revpi-v8 source: \
+source-contains-prebuilt-windows-binary [tools/perf/tests/pe-file.exe.debug]
+linux-revpi-v8 source: \
+source-contains-prebuilt-windows-binary [tools/perf/tests/pe-file.exe]
 __EOF__
 
 cat > debian/gbp.conf <<- __EOF__
