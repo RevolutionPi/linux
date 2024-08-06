@@ -184,7 +184,7 @@ host_gnu=$(dpkg-architecture -a "${debarch}" -q DEB_HOST_GNU_TYPE | sed 's/_/-/g
 # The "debian/" directory will be checked into git on the Revolution Pi linux
 # fork which will also include a maintained changelog that shouldn't be
 # removed.
-if [ ! -e debian/changelog ] || [ -n "$FORCE_CHANGELOG_GEN" ]; then
+if [ ! -e debian/changelog ] || [ "${FORCE_CHANGELOG_GEN:+set}" ]; then
 	# Generate a simple changelog template
 	cat <<-EOF > debian/changelog
 	$sourcename ($packageversion) $distribution; urgency=low
