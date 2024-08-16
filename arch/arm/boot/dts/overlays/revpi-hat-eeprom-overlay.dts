@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * Copyright 2022 KUNBUS GmbH
- */
+// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-FileCopyrightText: Copyright 2023 KUNBUS GmbH
 
 /dts-v1/;
 /plugin/;

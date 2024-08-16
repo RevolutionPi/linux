@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-FileCopyrightText: Copyright 2017-2022 KUNBUS GmbH
 /*
  * Device tree overlay for Revolution Pi by KUNBUS
  *
