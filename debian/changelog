@@ -1,0 +1,17 @@
+linux-revpi-v8 (6.6.46-rt39-revpi1-1+deb12+1) bookworm; urgency=medium
+
+  * Update upstream sources
+    - Mainline version: 6.6.46
+    - PREEMPT_RT version: v6.6.44-rt39
+    - Raspberry Pi version: based on rpi-6.6.y branch (commit 209e8a3e6646)
+
+ -- Philipp Rosenberger <p.rosenberger@kunbus.com>  Mon, 19 Aug 2024 11:10:18 +0200
+
+linux-revpi-v8 (6.6.43-rt38-revpi0-1+deb12+1) bookworm; urgency=low
+
+  * Initial linux-revpi-v8 release
+    - Mainline version: 6.6.43
+    - PREEMPT_RT version: 6.6.43-rt38
+    - Raspberry Pi version: based on rpi-6.6.y branch (commit 85d11cfa7df)
+
+ -- Philipp Rosenberger <p.rosenberger@kunbus.com>  Mon, 05 Aug 2024 16:13:06 +0200
