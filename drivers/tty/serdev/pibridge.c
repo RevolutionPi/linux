@@ -231,7 +231,9 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 
 	hdr = (struct pibridge_pkthdr_gate *) datagram;
 	hdr->dst = dst;
+	hdr->src = 0;
 	hdr->cmd = cmd;
+	hdr->seq = 0;
 	hdr->len = buf_len;
 
 	crc = pibridge_crc8(0, hdr, sizeof(*hdr));
