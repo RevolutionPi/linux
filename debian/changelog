@@ -1,3 +1,18 @@
+linux-revpi-v8 (6.6.46-rt39-revpi2-1+deb12+1) bookworm; urgency=medium
+
+  [ Thomas Böhler ]
+  * package: mkdebian: force copyright generation
+  * package: gen_revpi_pkg: add -l option to write debian/copyright
+
+  [ Philipp Rosenberger ]
+  * debian: Replace the package copyright file
+  * arm/dts: Add SPDX license header GPL-2.0-only
+
+  [ Lino Sanfilippo ]
+  * pibridge-serdev: clear uninitialized fields in gateway datagram
+
+ -- Thomas Böhler <t.boehler@kunbus.com>  Thu, 29 Aug 2024 07:15:23 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi1-1+deb12+1) bookworm; urgency=medium
 
   * Update upstream sources
