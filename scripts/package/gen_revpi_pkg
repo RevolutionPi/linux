@@ -39,6 +39,7 @@ usage() {
 	  -a    Append additional string to the debian revision
 	  -c    Generate a new debian/changelog and override the old one if present
 	  -d    Upstream is a "devel/" branch
+	  -l    Write a default debian/copyright file
 	  -v    Be verbose. Pass multiple times for increased verbosity
 	        Uses "set -x" and sets "KBUILD_VERBOSE=1"
 
@@ -52,12 +53,13 @@ usage() {
 	exit "${1:-0}"
 }
 
-while getopts "a:cdhv" opt; do
+while getopts "a:cdhlv" opt; do
 	case "$opt" in
 	a) deb_rev_append="$OPTARG" ;;
 	c) FORCE_CHANGELOG_GEN="true" ;;
 	d) DEVEL_BRANCH="devel/" ;;
 	h) usage 0 ;;
+	l) FORCE_COPYRIGHT_GEN="true" ;;
 	v) VERBOSITY=$((VERBOSITY+1)) ;;
 	?) usage 1 >&2 ;;
 	esac
@@ -92,7 +94,7 @@ pkg_name_ext="${mainline_vers%.*}.0-revpi${revpi_vers}-rpi${RPI_ARCH_SUFFIX}"
 pkg_vers="${upstream_vers}-1+deb12+1${deb_rev_append}"
 
 # export variables so kbuild knows about them, too
-export ARCH FORCE_CHANGELOG_GEN
+export ARCH FORCE_CHANGELOG_GEN FORCE_COPYRIGHT_GEN
 set -- \
 	KBUILD_BUILD_HOST="$KBUILD_BUILD_HOST" \
 	KBUILD_BUILD_USER="$KBUILD_BUILD_USER" \

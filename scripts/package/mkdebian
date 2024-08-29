@@ -283,7 +283,16 @@ ARCH := ${ARCH}
 KERNELRELEASE := ${KERNELRELEASE}
 EOF
 
-cp "${srctree}/scripts/package/debian/copyright" debian/
+# Only generate a copyright file if none is present or it's explicitly wanted
+if [ "${FORCE_COPYRIGHT_GEN:+set}" ]; then
+	cp "${srctree}/scripts/package/debian/copyright" debian/
+fi
+
 cp "${srctree}/scripts/package/debian/rules" debian/
+
+if [ ! -f debian/copyright ]; then
+	echo "Error: No copyright file installed" >&2
+	exit 1
+fi
 
 exit 0
