@@ -207,9 +207,26 @@ static int mcp320x_read_raw(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_RAW:
 		ret = mcp320x_adc_conversion(adc, channel->address,
 			channel->differential, device_index, val);
-		if (ret < 0)
-			goto out;
+		if (ret < 0) {
+			/*
+			 * The AIN does not work properly any more. To get out
+			 * of this erroneous mode use the same workaround as
+			 * in mcp320x_probe().
+			 */
+			mcp320x_adc_conversion(adc, 0, 1, device_index, val);
+			mcp320x_adc_conversion(adc, 0, 1, device_index, val);
 
+			ret = mcp320x_adc_conversion(adc, channel->address,
+						     channel->differential,
+						     device_index, val);
+			if (ret < 0) {
+				/*
+				 * Value still erroneous and workaround did
+				 * not help. Give up and report the error.
+				 */
+				goto out;
+			}
+		}
 		ret = IIO_VAL_INT;
 		break;
 
