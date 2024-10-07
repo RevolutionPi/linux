@@ -1,3 +1,13 @@
+linux-revpi-v8 (6.6.46-rt39-revpi3-1+deb12+1) bookworm; urgency=medium
+
+  [ Thomas Böhler ]
+  * package: propagate necessary env variables for debuild
+
+  [ Lino Sanfilippo ]
+  * iio: adc: mcp320x: Use workaround at AIN failure
+
+ -- Thomas Böhler <t.boehler@kunbus.com>  Mon, 07 Oct 2024 08:46:03 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi2-1+deb12+1) bookworm; urgency=medium
 
   [ Thomas Böhler ]
