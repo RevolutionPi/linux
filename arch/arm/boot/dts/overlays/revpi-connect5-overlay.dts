@@ -108,6 +108,14 @@
 				/* Sniff pins 1B and 2B */
 				right-sniff-gpios = <&exp_gpio_power 14 GPIO_ACTIVE_HIGH>,
 						   <&exp_gpio_power 15 GPIO_ACTIVE_HIGH>;
+
+				/* Left multiplex, detection pin */
+				left-pbswitch-gpios = <&exp_gpio_core 10 GPIO_ACTIVE_HIGH>,
+						      <&exp_gpio_core 15 GPIO_ACTIVE_HIGH>;
+
+				/* Right multiplex, detection pin */
+				right-pbswitch-gpios = <&exp_gpio_power 3 GPIO_ACTIVE_HIGH>,
+						       <&exp_gpio_power 5 GPIO_ACTIVE_HIGH>;
 			};
 		};
 	};
