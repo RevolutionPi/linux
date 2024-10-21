@@ -58,6 +58,7 @@ define binary
 	$(Q)dh_installchangelogs $(DH_OPTIONS)
 	$(Q)dh_compress $(DH_OPTIONS)
 	$(Q)dh_fixperms $(DH_OPTIONS)
+	$(Q)dh_shlibdeps $(DH_OPTIONS)
 	$(Q)dh_gencontrol $(DH_OPTIONS) -- -f$(call mk-files,$@)
 	$(Q)dh_md5sums $(DH_OPTIONS)
 	$(Q)dh_builddeb $(DH_OPTIONS) -- $(addprefix -Z,$(KDEB_COMPRESS))
