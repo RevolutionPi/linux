@@ -2146,6 +2146,9 @@ static struct audio *find_first_free_audio(
 {
 	int i, available_audio_count;
 
+	if (id == ENGINE_ID_UNKNOWN)
+		return NULL;
+
 	available_audio_count = pool->audio_count;
 
 	for (i = 0; i < available_audio_count; i++) {
@@ -3038,6 +3041,12 @@ static void set_avi_info_frame(
 		hdmi_info.bits.C0_C1   = COLORIMETRY_EXTENDED;
 	}
 
+	if (pixel_encoding && color_space == COLOR_SPACE_2020_YCBCR &&
+			stream->out_transfer_func->tf == TRANSFER_FUNCTION_GAMMA22) {
+		hdmi_info.bits.EC0_EC2 = 0;
+		hdmi_info.bits.C0_C1 = COLORIMETRY_ITU709;
+	}
+
 	/* TODO: un-hardcode aspect ratio */
 	aspect = stream->timing.aspect_ratio;
 
@@ -3620,6 +3629,9 @@ void resource_build_bit_depth_reduction_params(struct dc_stream_state *stream,
 
 enum dc_status dc_validate_stream(struct dc *dc, struct dc_stream_state *stream)
 {
+	if (dc == NULL || stream == NULL)
+		return DC_ERROR_UNEXPECTED;
+
 	struct dc_link *link = stream->link;
 	struct timing_generator *tg = dc->res_pool->timing_generators[0];
 	enum dc_status res = DC_OK;

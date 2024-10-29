@@ -89,16 +89,20 @@ static void otx2vf_vfaf_mbox_handler(struct work_struct *work)
 	struct otx2_mbox *mbox;
 	struct mbox *af_mbox;
 	int offset, id;
+	u16 num_msgs;
 
 	af_mbox = container_of(work, struct mbox, mbox_wrk);
 	mbox = &af_mbox->mbox;
 	mdev = &mbox->dev[0];
 	rsp_hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
-	if (af_mbox->num_msgs == 0)
+	num_msgs = rsp_hdr->num_msgs;
+
+	if (num_msgs == 0)
 		return;
+
 	offset = mbox->rx_start + ALIGN(sizeof(*rsp_hdr), MBOX_MSG_ALIGN);
 
-	for (id = 0; id < af_mbox->num_msgs; id++) {
+	for (id = 0; id < num_msgs; id++) {
 		msg = (struct mbox_msghdr *)(mdev->mbase + offset);
 		otx2vf_process_vfaf_mbox_msg(af_mbox->pfvf, msg);
 		offset = mbox->rx_start + msg->next_msgoff;
@@ -151,6 +155,7 @@ static void otx2vf_vfaf_mbox_up_handler(struct work_struct *work)
 	struct mbox *vf_mbox;
 	struct otx2_nic *vf;
 	int offset, id;
+	u16 num_msgs;
 
 	vf_mbox = container_of(work, struct mbox, mbox_up_wrk);
 	vf = vf_mbox->pfvf;
@@ -158,12 +163,14 @@ static void otx2vf_vfaf_mbox_up_handler(struct work_struct *work)
 	mdev = &mbox->dev[0];
 
 	rsp_hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
-	if (vf_mbox->up_num_msgs == 0)
+	num_msgs = rsp_hdr->num_msgs;
+
+	if (num_msgs == 0)
 		return;
 
 	offset = mbox->rx_start + ALIGN(sizeof(*rsp_hdr), MBOX_MSG_ALIGN);
 
-	for (id = 0; id < vf_mbox->up_num_msgs; id++) {
+	for (id = 0; id < num_msgs; id++) {
 		msg = (struct mbox_msghdr *)(mdev->mbase + offset);
 		otx2vf_process_mbox_msg_up(vf, msg);
 		offset = mbox->rx_start + msg->next_msgoff;
@@ -178,40 +185,48 @@ static irqreturn_t otx2vf_vfaf_mbox_intr_handler(int irq, void *vf_irq)
 	struct otx2_mbox_dev *mdev;
 	struct otx2_mbox *mbox;
 	struct mbox_hdr *hdr;
+	u64 mbox_data;
 
 	/* Clear the IRQ */
 	otx2_write64(vf, RVU_VF_INT, BIT_ULL(0));
 
+	mbox_data = otx2_read64(vf, RVU_VF_VFPF_MBOX0);
+
 	/* Read latest mbox data */
 	smp_rmb();
 
-	/* Check for PF => VF response messages */
-	mbox = &vf->mbox.mbox;
-	mdev = &mbox->dev[0];
-	otx2_sync_mbox_bbuf(mbox, 0);
+	if (mbox_data & MBOX_DOWN_MSG) {
+		mbox_data &= ~MBOX_DOWN_MSG;
+		otx2_write64(vf, RVU_VF_VFPF_MBOX0, mbox_data);
 
-	trace_otx2_msg_interrupt(mbox->pdev, "PF to VF", BIT_ULL(0));
+		/* Check for PF => VF response messages */
+		mbox = &vf->mbox.mbox;
+		mdev = &mbox->dev[0];
+		otx2_sync_mbox_bbuf(mbox, 0);
 
-	hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
-	if (hdr->num_msgs) {
-		vf->mbox.num_msgs = hdr->num_msgs;
-		hdr->num_msgs = 0;
-		memset(mbox->hwbase + mbox->rx_start, 0,
-		       ALIGN(sizeof(struct mbox_hdr), sizeof(u64)));
-		queue_work(vf->mbox_wq, &vf->mbox.mbox_wrk);
+		hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+		if (hdr->num_msgs)
+			queue_work(vf->mbox_wq, &vf->mbox.mbox_wrk);
+
+		trace_otx2_msg_interrupt(mbox->pdev, "DOWN reply from PF to VF",
+					 BIT_ULL(0));
 	}
-	/* Check for PF => VF notification messages */
-	mbox = &vf->mbox.mbox_up;
-	mdev = &mbox->dev[0];
-	otx2_sync_mbox_bbuf(mbox, 0);
 
-	hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
-	if (hdr->num_msgs) {
-		vf->mbox.up_num_msgs = hdr->num_msgs;
-		hdr->num_msgs = 0;
-		memset(mbox->hwbase + mbox->rx_start, 0,
-		       ALIGN(sizeof(struct mbox_hdr), sizeof(u64)));
-		queue_work(vf->mbox_wq, &vf->mbox.mbox_up_wrk);
+	if (mbox_data & MBOX_UP_MSG) {
+		mbox_data &= ~MBOX_UP_MSG;
+		otx2_write64(vf, RVU_VF_VFPF_MBOX0, mbox_data);
+
+		/* Check for PF => VF notification messages */
+		mbox = &vf->mbox.mbox_up;
+		mdev = &mbox->dev[0];
+		otx2_sync_mbox_bbuf(mbox, 0);
+
+		hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+		if (hdr->num_msgs)
+			queue_work(vf->mbox_wq, &vf->mbox.mbox_up_wrk);
+
+		trace_otx2_msg_interrupt(mbox->pdev, "UP message from PF to VF",
+					 BIT_ULL(0));
 	}
 
 	return IRQ_HANDLED;
@@ -293,9 +308,8 @@ static int otx2vf_vfaf_mbox_init(struct otx2_nic *vf)
 	int err;
 
 	mbox->pfvf = vf;
-	vf->mbox_wq = alloc_workqueue("otx2_vfaf_mailbox",
-				      WQ_UNBOUND | WQ_HIGHPRI |
-				      WQ_MEM_RECLAIM, 1);
+	vf->mbox_wq = alloc_ordered_workqueue("otx2_vfaf_mailbox",
+					      WQ_HIGHPRI | WQ_MEM_RECLAIM);
 	if (!vf->mbox_wq)
 		return -ENOMEM;
 
@@ -475,6 +489,7 @@ static const struct net_device_ops otx2vf_netdev_ops = {
 	.ndo_open = otx2vf_open,
 	.ndo_stop = otx2vf_stop,
 	.ndo_start_xmit = otx2vf_xmit,
+	.ndo_select_queue = otx2_select_queue,
 	.ndo_set_rx_mode = otx2vf_set_rx_mode,
 	.ndo_set_mac_address = otx2_set_mac_address,
 	.ndo_change_mtu = otx2vf_change_mtu,
@@ -520,10 +535,10 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int num_vec = pci_msix_vec_count(pdev);
 	struct device *dev = &pdev->dev;
+	int err, qcount, qos_txqs;
 	struct net_device *netdev;
 	struct otx2_nic *vf;
 	struct otx2_hw *hw;
-	int err, qcount;
 
 	err = pcim_enable_device(pdev);
 	if (err) {
@@ -546,7 +561,8 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pci_set_master(pdev);
 
 	qcount = num_online_cpus();
-	netdev = alloc_etherdev_mqs(sizeof(*vf), qcount, qcount);
+	qos_txqs = min_t(int, qcount, OTX2_QOS_MAX_LEAF_NODES);
+	netdev = alloc_etherdev_mqs(sizeof(*vf), qcount + qos_txqs, qcount);
 	if (!netdev) {
 		err = -ENOMEM;
 		goto err_release_regions;
@@ -566,7 +582,7 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	hw->rx_queues = qcount;
 	hw->tx_queues = qcount;
 	hw->max_queues = qcount;
-	hw->tot_tx_queues = qcount;
+	hw->non_qos_queues = qcount;
 	hw->rbuf_len = OTX2_DEFAULT_RBUF_LEN;
 	/* Use CQE of 128 byte descriptor size by default */
 	hw->xqe_size = 128;
@@ -695,6 +711,7 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_shutdown_tc;
 #endif
+	otx2_qos_init(vf, qos_txqs);
 
 	return 0;
 

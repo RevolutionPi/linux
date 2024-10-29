@@ -676,9 +676,10 @@ static int nla_put_nh_group(struct sk_buff *skb, struct nh_group *nhg)
 
 	p = nla_data(nla);
 	for (i = 0; i < nhg->num_nh; ++i) {
-		p->id = nhg->nh_entries[i].nh->id;
-		p->weight = nhg->nh_entries[i].weight - 1;
-		p += 1;
+		*p++ = (struct nexthop_grp) {
+			.id = nhg->nh_entries[i].nh->id,
+			.weight = nhg->nh_entries[i].weight - 1,
+		};
 	}
 
 	if (nhg->resilient && nla_put_nh_group_res(skb, nhg))
@@ -1124,13 +1125,13 @@ static bool ipv6_good_nh(const struct fib6_nh *nh)
 	int state = NUD_REACHABLE;
 	struct neighbour *n;
 
-	rcu_read_lock_bh();
+	rcu_read_lock();
 
 	n = __ipv6_neigh_lookup_noref_stub(nh->fib_nh_dev, &nh->fib_nh_gw6);
 	if (n)
-		state = n->nud_state;
+		state = READ_ONCE(n->nud_state);
 
-	rcu_read_unlock_bh();
+	rcu_read_unlock();
 
 	return !!(state & NUD_VALID);
 }
@@ -1140,14 +1141,14 @@ static bool ipv4_good_nh(const struct fib_nh *nh)
 	int state = NUD_REACHABLE;
 	struct neighbour *n;
 
-	rcu_read_lock_bh();
+	rcu_read_lock();
 
 	n = __ipv4_neigh_lookup_noref(nh->fib_nh_dev,
 				      (__force u32)nh->fib_nh_gw4);
 	if (n)
-		state = n->nud_state;
+		state = READ_ONCE(n->nud_state);
 
-	rcu_read_unlock_bh();
+	rcu_read_unlock();
 
 	return !!(state & NUD_VALID);
 }

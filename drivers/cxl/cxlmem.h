@@ -75,6 +75,18 @@ static inline bool is_cxl_endpoint(struct cxl_port *port)
 }
 
 struct cxl_memdev *devm_cxl_add_memdev(struct cxl_dev_state *cxlds);
+int devm_cxl_dpa_reserve(struct cxl_endpoint_decoder *cxled,
+			 resource_size_t base, resource_size_t len,
+			 resource_size_t skipped);
+
+static inline struct cxl_ep *cxl_ep_load(struct cxl_port *port,
+					 struct cxl_memdev *cxlmd)
+{
+	if (!port)
+		return NULL;
+
+	return xa_load(&port->endpoints, (unsigned long)&cxlmd->dev);
+}
 
 /**
  * struct cxl_mbox_cmd - A command to be submitted to hardware.
@@ -281,7 +293,7 @@ enum cxl_opcode {
 		  0x3b, 0x3f, 0x17)
 
 #define DEFINE_CXL_VENDOR_DEBUG_UUID                                           \
-	UUID_INIT(0xe1819d9, 0x11a9, 0x400c, 0x81, 0x1f, 0xd6, 0x07, 0x19,     \
+	UUID_INIT(0x5e1819d9, 0x11a9, 0x400c, 0x81, 0x1f, 0xd6, 0x07, 0x19,     \
 		  0x40, 0x3d, 0x86)
 
 struct cxl_mbox_get_supported_logs {

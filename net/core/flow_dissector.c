@@ -1013,7 +1013,7 @@ bool __skb_flow_dissect(const struct net *net,
 		}
 	}
 
-	WARN_ON_ONCE(!net);
+	DEBUG_NET_WARN_ON_ONCE(!net);
 	if (net) {
 		enum netns_bpf_attach_type type = NETNS_BPF_FLOW_DISSECTOR;
 		struct bpf_prog_array *run_array;
@@ -1366,7 +1366,7 @@ proto_again:
 			break;
 		}
 
-		nhoff += ntohs(hdr->message_length);
+		nhoff += sizeof(struct ptp_header);
 		fdret = FLOW_DISSECT_RET_OUT_GOOD;
 		break;
 	}

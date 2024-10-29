@@ -229,6 +229,7 @@
 		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH 0>;
 		cpus = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>,
 		       <&cpu4>, <&cpu5>, <&cpu6>, <&cpu7>;
+		status = "fail";
 	};
 
 	dmic_codec: dmic-codec {
@@ -470,6 +471,8 @@
 
 					power-domain@MT8195_POWER_DOMAIN_VENC_CORE1 {
 						reg = <MT8195_POWER_DOMAIN_VENC_CORE1>;
+						clocks = <&vencsys_core1 CLK_VENC_CORE1_LARB>;
+						clock-names = "venc1-larb";
 						mediatek,infracfg = <&infracfg_ao>;
 						#power-domain-cells = <0>;
 					};
@@ -532,6 +535,8 @@
 
 						power-domain@MT8195_POWER_DOMAIN_VENC {
 							reg = <MT8195_POWER_DOMAIN_VENC>;
+							clocks = <&vencsys CLK_VENC_LARB>;
+							clock-names = "venc0-larb";
 							mediatek,infracfg = <&infracfg_ao>;
 							#power-domain-cells = <0>;
 						};
@@ -1487,6 +1492,7 @@
 			compatible = "mediatek,mt8195-vppsys0";
 			reg = <0 0x14000000 0 0x1000>;
 			#clock-cells = <1>;
+			mediatek,gce-client-reg = <&gce1 SUBSYS_1400XXXX 0 0x1000>;
 		};
 
 		smi_sub_common_vpp0_vpp1_2x1: smi@14010000 {
@@ -1592,6 +1598,7 @@
 			compatible = "mediatek,mt8195-vppsys1";
 			reg = <0 0x14f00000 0 0x1000>;
 			#clock-cells = <1>;
+			mediatek,gce-client-reg = <&gce1 SUBSYS_14f0XXXX 0 0x1000>;
 		};
 
 		larb5: larb@14f02000 {
@@ -1977,6 +1984,7 @@
 			reg = <0 0x1c01a000 0 0x1000>;
 			mboxes = <&gce0 0 CMDQ_THR_PRIO_4>;
 			#clock-cells = <1>;
+			mediatek,gce-client-reg = <&gce0 SUBSYS_1c01XXXX 0xa000 0x1000>;
 		};
 
 		larb20: larb@1b010000 {
@@ -1984,7 +1992,7 @@
 			reg = <0 0x1b010000 0 0x1000>;
 			mediatek,larb-id = <20>;
 			mediatek,smi = <&smi_common_vpp>;
-			clocks = <&vencsys_core1 CLK_VENC_CORE1_LARB>,
+			clocks = <&vencsys_core1 CLK_VENC_CORE1_VENC>,
 				 <&vencsys_core1 CLK_VENC_CORE1_GALS>,
 				 <&vppsys0 CLK_VPP0_GALS_VDO0_VDO1_VENCSYS_CORE1>;
 			clock-names = "apb", "smi", "gals";
@@ -2080,6 +2088,7 @@
 			interrupts = <GIC_SPI 658 IRQ_TYPE_LEVEL_HIGH 0>;
 			power-domains = <&spm MT8195_POWER_DOMAIN_VDOSYS0>;
 			clocks = <&vdosys0 CLK_VDO0_DISP_MUTEX0>;
+			mediatek,gce-client-reg = <&gce0 SUBSYS_1c01XXXX 0x6000 0x1000>;
 			mediatek,gce-events = <CMDQ_EVENT_VDO0_DISP_STREAM_DONE_0>;
 		};
 

@@ -646,19 +646,19 @@ static int inet6_dump_fib(struct sk_buff *skb, struct netlink_callback *cb)
 	if (!w) {
 		/* New dump:
 		 *
-		 * 1. hook callback destructor.
-		 */
-		cb->args[3] = (long)cb->done;
-		cb->done = fib6_dump_done;
-
-		/*
-		 * 2. allocate and initialize walker.
+		 * 1. allocate and initialize walker.
 		 */
 		w = kzalloc(sizeof(*w), GFP_ATOMIC);
 		if (!w)
 			return -ENOMEM;
 		w->func = fib6_dump_node;
 		cb->args[2] = (long)w;
+
+		/* 2. hook callback destructor.
+		 */
+		cb->args[3] = (long)cb->done;
+		cb->done = fib6_dump_done;
+
 	}
 
 	arg.skb = skb;
@@ -962,6 +962,7 @@ static void __fib6_drop_pcpu_from(struct fib6_nh *fib6_nh,
 	if (!fib6_nh->rt6i_pcpu)
 		return;
 
+	rcu_read_lock();
 	/* release the reference to this fib entry from
 	 * all of its cached pcpu routes
 	 */
@@ -970,7 +971,9 @@ static void __fib6_drop_pcpu_from(struct fib6_nh *fib6_nh,
 		struct rt6_info *pcpu_rt;
 
 		ppcpu_rt = per_cpu_ptr(fib6_nh->rt6i_pcpu, cpu);
-		pcpu_rt = *ppcpu_rt;
+
+		/* Paired with xchg() in rt6_get_pcpu_route() */
+		pcpu_rt = READ_ONCE(*ppcpu_rt);
 
 		/* only dropping the 'from' reference if the cached route
 		 * is using 'match'. The cached pcpu_rt->from only changes
@@ -984,6 +987,7 @@ static void __fib6_drop_pcpu_from(struct fib6_nh *fib6_nh,
 			fib6_info_release(from);
 		}
 	}
+	rcu_read_unlock();
 }
 
 struct fib6_nh_pcpu_arg {
@@ -1376,7 +1380,10 @@ int fib6_add(struct fib6_node *root, struct fib6_info *rt,
 	     struct nl_info *info, struct netlink_ext_ack *extack)
 {
 	struct fib6_table *table = rt->fib6_table;
-	struct fib6_node *fn, *pn = NULL;
+	struct fib6_node *fn;
+#ifdef CONFIG_IPV6_SUBTREES
+	struct fib6_node *pn = NULL;
+#endif
 	int err = -ENOMEM;
 	int allow_create = 1;
 	int replace_required = 0;
@@ -1400,9 +1407,9 @@ int fib6_add(struct fib6_node *root, struct fib6_info *rt,
 		goto out;
 	}
 
+#ifdef CONFIG_IPV6_SUBTREES
 	pn = fn;
 
-#ifdef CONFIG_IPV6_SUBTREES
 	if (rt->fib6_src.plen) {
 		struct fib6_node *sn;
 
@@ -1502,13 +1509,9 @@ out:
 			if (!pn_leaf && !(pn->fn_flags & RTN_RTINFO)) {
 				pn_leaf = fib6_find_prefix(info->nl_net, table,
 							   pn);
-#if RT6_DEBUG >= 2
-				if (!pn_leaf) {
-					WARN_ON(!pn_leaf);
+				if (!pn_leaf)
 					pn_leaf =
 					    info->nl_net->ipv6.fib6_null_entry;
-				}
-#endif
 				fib6_info_hold(pn_leaf);
 				rcu_assign_pointer(pn->leaf, pn_leaf);
 			}
@@ -2492,7 +2495,7 @@ static int ipv6_route_native_seq_show(struct seq_file *seq, void *v)
 	const struct net_device *dev;
 
 	if (rt->nh)
-		fib6_nh = nexthop_fib6_nh_bh(rt->nh);
+		fib6_nh = nexthop_fib6_nh(rt->nh);
 
 	seq_printf(seq, "%pi6 %02x ", &rt->fib6_dst.addr, rt->fib6_dst.plen);
 
@@ -2557,14 +2560,14 @@ static struct fib6_table *ipv6_route_seq_next_table(struct fib6_table *tbl,
 
 	if (tbl) {
 		h = (tbl->tb6_id & (FIB6_TABLE_HASHSZ - 1)) + 1;
-		node = rcu_dereference_bh(hlist_next_rcu(&tbl->tb6_hlist));
+		node = rcu_dereference(hlist_next_rcu(&tbl->tb6_hlist));
 	} else {
 		h = 0;
 		node = NULL;
 	}
 
 	while (!node && h < FIB6_TABLE_HASHSZ) {
-		node = rcu_dereference_bh(
+		node = rcu_dereference(
 			hlist_first_rcu(&net->ipv6.fib_table_hash[h++]));
 	}
 	return hlist_entry_safe(node, struct fib6_table, tb6_hlist);
@@ -2594,7 +2597,7 @@ static void *ipv6_route_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 	if (!v)
 		goto iter_table;
 
-	n = rcu_dereference_bh(((struct fib6_info *)v)->fib6_next);
+	n = rcu_dereference(((struct fib6_info *)v)->fib6_next);
 	if (n)
 		return n;
 
@@ -2620,12 +2623,12 @@ iter_table:
 }
 
 static void *ipv6_route_seq_start(struct seq_file *seq, loff_t *pos)
-	__acquires(RCU_BH)
+	__acquires(RCU)
 {
 	struct net *net = seq_file_net(seq);
 	struct ipv6_route_iter *iter = seq->private;
 
-	rcu_read_lock_bh();
+	rcu_read_lock();
 	iter->tbl = ipv6_route_seq_next_table(NULL, net);
 	iter->skip = *pos;
 
@@ -2646,7 +2649,7 @@ static bool ipv6_route_iter_active(struct ipv6_route_iter *iter)
 }
 
 static void ipv6_route_native_seq_stop(struct seq_file *seq, void *v)
-	__releases(RCU_BH)
+	__releases(RCU)
 {
 	struct net *net = seq_file_net(seq);
 	struct ipv6_route_iter *iter = seq->private;
@@ -2654,7 +2657,7 @@ static void ipv6_route_native_seq_stop(struct seq_file *seq, void *v)
 	if (ipv6_route_iter_active(iter))
 		fib6_walker_unlink(net, &iter->w);
 
-	rcu_read_unlock_bh();
+	rcu_read_unlock();
 }
 
 #if IS_BUILTIN(CONFIG_IPV6) && defined(CONFIG_BPF_SYSCALL)
