@@ -165,6 +165,35 @@ linux-revpi-v8 source: \
 source-contains-prebuilt-windows-binary [tools/perf/tests/pe-file.exe]
 __EOF__
 
+# The binary packages linux-image-*-dbg and linux-headers-* both have long
+# names that lintian complains about. Override lintian to ignore this as they
+# can't be shorter.
+linux_lintian_name_common="${mainline_vers%.*}".0-revpi"${revpi_vers}"-rpi-v8
+linux_image_dbg_lintian=debian/linux-image-"${linux_lintian_name_common}"-dbg.lintian-overrides
+linux_headers_lintian=debian/linux-headers-"${linux_lintian_name_common}".lintian-overrides
+
+cat <<- __EOF__ >> "$LINTIAN_OVERRIDES_FILE"
+linux-revpi-v8 source: dbg-package-missing-depends \
+linux-image-$linux_lintian_name_common-dbg
+__EOF__
+
+# make sure no overrides for possibly old versions are present
+rm -f debian/*.lintian-overrides
+for file in \
+	"${linux_image_dbg_lintian}" \
+	"${linux_headers_lintian}"
+do
+	cat <<- __EOF__ > "$file"
+	# Ignore the warning because the file names for the headers and image can't be
+	# shorter than they are due to the following constraints:
+	# - "rpi" needs to be in the name
+	# - version string needs to be in the name, consists of:
+	#   - mainline version (i.e. 6.6.0)
+	#   - revpi version (i.e. revpi5)
+	package-has-long-file-name
+	__EOF__
+done
+
 cat > debian/gbp.conf <<- __EOF__
 [DEFAULT]
 upstream-branch = ${DEVEL_BRANCH}revpi-${mainline_vers%.*}
