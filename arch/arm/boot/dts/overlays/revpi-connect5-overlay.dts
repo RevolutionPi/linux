@@ -1,0 +1,404 @@
+// SPDX-License-Identifier: GPL-2.0
+// SPDX-FileCopyrightText: Copyright 2024 KUNBUS GmbH
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-connect5", "brcm,bcm2712";
+
+			leds {
+				compatible = "gpio-leds";
+				power_red {
+					label = "power:1:fault";
+					gpios = <&exp_gpio_core 0 GPIO_ACTIVE_HIGH>;
+					linux,default-trigger = "power_red";
+				};
+				a1_red {
+					label = "a1:red:status";
+					gpios = <&exp_gpio_core 1 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_red";
+				};
+				a1_green {
+					label = "a1:green:status";
+					gpios = <&exp_gpio_core 2 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_green";
+				};
+				a1_blue {
+					label = "a1:blue:status";
+					gpios = <&exp_gpio_core 3 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a1_blue";
+				};
+				a2_red {
+					label = "a2:red:status";
+					gpios = <&exp_gpio_core 4 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_red";
+				};
+				a2_green {
+					label = "a2:green:status";
+					gpios = <&exp_gpio_core 5 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_green";
+				};
+				a2_blue {
+					label = "a2:blue:status";
+					gpios = <&exp_gpio_core 6 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a2_blue";
+				};
+				a3_red {
+					label = "a3:red:status";
+					gpios = <&exp_gpio_power 0 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_red";
+				};
+				a3_green {
+					label = "a3:green:status";
+					gpios = <&exp_gpio_power 1 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_green";
+				};
+				a3_blue {
+					label = "a3:blue:status";
+					gpios = <&exp_gpio_power 2 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a3_blue";
+				};
+				a4_red {
+					label = "a4:red:status";
+					gpios = <&exp_gpio_power 8 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_red";
+				};
+				a4_green {
+					label = "a4:green:status";
+					gpios = <&exp_gpio_power 9 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_green";
+				};
+				a4_blue {
+					label = "a4:blue:status";
+					gpios = <&exp_gpio_power 10 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a4_blue";
+				};
+				a5_red {
+					label = "a5:red:status";
+					gpios = <&exp_gpio_power 11 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_red";
+				};
+				a5_green {
+					label = "a5:green:status";
+					gpios = <&exp_gpio_power 12 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_green";
+				};
+				a5_blue {
+					label = "a5:blue:status";
+					gpios = <&exp_gpio_power 13 GPIO_ACTIVE_LOW>;
+					linux,default-trigger = "a5_blue";
+				};
+			};
+
+			pibridge {
+				compatible = "kunbus,pibridge";
+
+				/* Sniff pins 1A and 2A */
+				left-sniff-gpios = <&exp_gpio_core 8 GPIO_ACTIVE_HIGH>,
+						   <&exp_gpio_core 9 GPIO_ACTIVE_HIGH>;
+				/* Sniff pins 1B and 2B */
+				right-sniff-gpios = <&exp_gpio_power 14 GPIO_ACTIVE_HIGH>,
+						   <&exp_gpio_power 15 GPIO_ACTIVE_HIGH>;
+
+				/*
+				 * Left multiplexer (swapped input pins thus active low),
+				 * Module detection pin
+				 */
+				left-pbswitch-gpios = <&exp_gpio_core 10 GPIO_ACTIVE_LOW>,
+						      <&exp_gpio_core 15 GPIO_ACTIVE_HIGH>;
+
+				/*
+				 * Right multiplexer (swapped input pins thus active low),
+				 * Module detection pin
+				 */
+				right-pbswitch-gpios = <&exp_gpio_power 3 GPIO_ACTIVE_LOW>,
+						       <&exp_gpio_power 5 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	/* GPIOS/PINMUX */
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio-line-names =
+				"ID_SDA", // GPIO0
+				"ID_SCL", // GPIO1
+				"I2C1_SDA", // GPIO2
+				"I2C1_SCL", // GPIO3
+				"UART2_TX", // GPIO4
+				"UART2_RX", // GPIO5
+				"-", // GPIO6
+				"UART2_RTS", // GPIO7
+				"INT_IOEX_CORE", // GPIO8
+				"INT_IOX_POWER", // GPIO9
+				"INT_TPM", // GPIO10
+				"SPI1_CS1", // GPIO11
+				"UART4_TX", // GPIO12
+				"UART4_RX", // GPIO13
+				"-", // GPIO14
+				"UART4_RTS", // GPIO15
+				"-", // GPIO16
+				"ID_WP", // GPIO17
+				"SPI1_CS0", // GPIO18
+				"SPI1_MISO", // GPIO19
+				"SPI1_MOSI", // GPIO20
+				"SPI1_CLK", // GPIO21
+				"-", // GPIO22
+				"-", // GPIO23
+				"-", // GPIO24
+				"-", // GPIO25
+				"-", // GPIO26
+				"-", // GPIO27
+
+				/*
+				 * GPIO line names >= 28 are taken from
+				 * arch/arm64/boot/dts/broadcom/bcm2712-rpi-cm5.dtsi
+				 */
+				"PCIE_PWR_EN", // GPIO28
+				"FAN_TACH", // GPIO29
+				"HOST_SDA", // GPIO30
+				"HOST_SCL", // GPIO31
+				"ETH_RST_N", // GPIO32
+				"PCIE_DET_WAKE", // GPIO33
+
+				"CD0_IO0_MICCLK", // GPIO34
+				"CD0_IO0_MICDAT0", // GPIO35
+				"RP1_PCIE_CLKREQ_N", // GPIO36
+				"ETH_IRQ_N", // GPIO37
+				"SDA0", // GPIO38
+				"SCL0", // GPIO39
+				"-", // GPIO40
+				"-", // GPIO41
+				"USB_VBUS_EN", // GPIO42
+				"USB_OC_N", // GPIO43
+				"RP1_STAT_LED", // GPIO44
+				"FAN_PWM", // GPIO45
+				"-", // GPIO46
+				"2712_WAKE", // GPIO47
+				"-", // GPIO48
+				"-", // GPIO49
+				"-", // GPIO50
+				"-", // GPIO51
+				"-", // GPIO52
+				"-"; // GPIO53
+
+			con5_i2c1_pins: con5_i2c1_pins {
+				/* SDA, SCL */
+				function = "i2c1";
+				pins = "gpio2", "gpio3";
+				bias-disable;
+			};
+			con5_spi1_pins: con5_spi1_pins {
+				/* MISO, MOSI, CLK */
+				function = "spi1";
+				pins = "gpio19", "gpio20", "gpio21";
+				bias-disable;
+			};
+			con5_spi1_cs_pins: con5_spi1_cs_pins {
+				/* CE0 (TPM), CE1 (CAN) */
+				function = "gpio";
+				pins = "gpio18", "gpio11";
+				bias-disable;
+			};
+			exp_core_pins: exp_core_pins {
+				/* IRQ */
+				function = "gpio";
+				pins = "gpio8";
+				bias-disable;
+			};
+			exp_power_pins: exp_power_pins {
+				/* IRQ */
+				function = "gpio";
+				pins = "gpio9";
+				bias-disable;
+			};
+			pb_uart_pins: pb_uart_pins {
+				/* TX, RX, TX_EN */
+				function = "uart2";
+				pins = "gpio4", "gpio5", "gpio7";
+				bias-disabled;
+			};
+			rs485_uart_pins: rs485_uart_pins {
+				/* TX RX TX_EN */
+				function = "uart4";
+				pins = "gpio12", "gpio13", "gpio15";
+				bias-disabled;
+			};
+			tpm_pins: tpm_pins {
+				/* IRQ */
+				function = "gpio";
+				pins = "gpio10";
+				bias-disabled;
+			};
+		};
+	};
+
+	/* I2C1 */
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&con5_i2c1_pins>;
+			clock-frequency = <400000>;
+			status = "okay";
+
+			exp_gpio_power: gpio@21 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcal6416";
+				pinctrl-names = "default";
+				pinctrl-0 = <&exp_power_pins>;
+				reg = <0x21>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+				gpio-line-names =
+					"LED_A3_RD", // GPIO0 / P0_0
+					"LED_A3_GN", // GPIO1 / P0_1
+					"LED_A3_BL", // GPIO2 / P0_2
+					"PB_R_MPX_S", // GPIO3 / P0_3
+					"RS485_TERM", // GPIO4 / P0_4
+					"PB_R_DETECT", // GPIO5 / P0_5
+					"PB_R_ETH_RST", // GPIO6 / P0_6
+					"-", // GPIO7 / P0_7
+					"LED_A4_RD", // GPIO8 / P1_0
+					"LED_A4_GN", // GPIO9 / P1_1
+					"LED_A4_BL", // GPIO10 / P1_2
+					"LED_A5_RD", // GPIO11 / P1_3
+					"LED_A5_GN", // GPIO12 / P1_4
+					"LED_A5_BL", // GPIO13 / P1_5
+					"PB_R_SNIFF", // GPIO14 / P1_6
+					"PB_R_ACK"; // GPIO15 / P1_7
+
+			};
+
+			exp_gpio_core: gpio@22 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcal6524";
+				pinctrl-names = "default";
+				pinctrl-0 = <&exp_core_pins>;
+				reg = <0x22>;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <8 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+				gpio-line-names =
+					"LEDS_PWRRED", // GPIO0 / P0_0
+					"LEDS_A1RED", // GPIO1 / P0_1
+					"LEDS_A1GRN", // GPIO2 / P0_2
+					"LEDS_A1BLUE", // GPIO3 / P0_3
+					"LEDS_A2RED", // GPIO4 / P0_4
+					"LEDS_A2GRN", // GPIO5 / P0_5
+					"LEDS_A2BLUE", // GPIO6 / P0_6
+					"PWRBLUE", // GPIO7 / P0_7
+					"PB_L_SNIFF", // GPIO8 / P1_0
+					"PB_L_ACK", // GPIO9 / P1_1
+					"PB_L_MPX_S", // GPIO10 / P1_2
+					"PB_TERM", // GPIO11 / P1_3
+					"-", // GPIO12 / P1_4
+					"-", // GPIO13 / P1_5
+					"-", // GPIO14 / P1_6
+					"PB_L_DETECT", // GPI15 / P1_7
+					"-", // GPIO16 / P2_0
+					"-", // GPIO17 / P2_1
+					"USB_OCI1", // GPIO18 / P2_2
+					"USB_OCI2", // GPIO19 / P2_3
+					"ETHB_RST", // GPIO20 / P2_4
+					"PBETH_L_RST", // GPIO21 / P2_5
+					"-", // GPIO22 / P2_6
+					"PG_1V05"; // GPIO23 / P2_7
+			};
+
+			rtc: rtc@53 {
+				/* 100kHz, 400kHz */
+				compatible = "nxp,pcf2131";
+				reg = <0x53>;
+				reset-source;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&rpi_rtc>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	/* SPI1 */
+	fragment@4 {
+		target = <&spi1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&con5_spi1_pins>, <&con5_spi1_cs_pins>;
+			cs-gpios = <&gpio 18 GPIO_ACTIVE_LOW>, <&gpio 11 GPIO_ACTIVE_LOW>;
+			status = "okay";
+
+			tpm: tpm@0 {
+				compatible = "infineon,slb9670";
+				pinctrl-names = "default";
+				pinctrl-0 = <&tpm_pins>;
+				reg = <0>;
+				spi-max-frequency = <1000000>;
+				interrupt-parent = <&gpio>;
+				#interrupt-cells = <2>;
+				interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
+				status = "okay";
+			};
+		};
+	};
+
+	/* UART2 (PB_SERIAL) */
+	fragment@5 {
+		target = <&uart2>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pb_uart_pins>;
+			linux,rs485-enabled-at-boot-time;
+			rs485-term-gpios = <&exp_gpio_core 11 GPIO_ACTIVE_HIGH>;
+			status = "okay";
+
+			pi_bridge {
+				compatible = "kunbus,pi-bridge";
+			};
+		};
+	};
+
+	/* UART4 (RS485)*/
+	fragment@6 {
+		target = <&uart4>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rs485_uart_pins>;
+			linux,rs485-enabled-at-boot-time;
+			rs485-rts-active-low;
+			rs485-term-gpios = <&exp_gpio_power 4 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
+
+	/* PHY1 (SoC Ethernet) */
+	fragment@7 {
+		target = <&phy1>;
+		__overlay__ {
+			/* Link Speed/Activity */
+			led-modes = <0x08 0x00>;
+		};
+	};
+};

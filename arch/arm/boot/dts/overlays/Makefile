@@ -226,12 +226,16 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	revpi-connect-se.dtbo \
 	revpi-connect-se-dt-blob.dtbo \
 	revpi-connect4.dtbo \
+	revpi-connect5.dtbo \
+	revpi-connect5-can.dtbo \
+	revpi-connect5-can-can.dtbo \
 	revpi-con-can.dtbo \
 	revpi-flat.dtbo \
 	revpi-flat-s-2022.dtbo \
 	revpi-flat-s-2022-dsa.dtbo \
 	revpi-flat-dt-blob.dtbo \
 	revpi-hat-eeprom.dtbo \
+	revpi-hat-eeprom-pi5.dtbo \
 	revpi-core.dtbo \
 	revpi-core-cm1.dtbo \
 	revpi-core-dt-blob.dtbo \

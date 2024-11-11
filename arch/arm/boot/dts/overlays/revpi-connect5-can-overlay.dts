@@ -1,0 +1,150 @@
+// SPDX-License-Identifier: GPL-2.0
+// SPDX-FileCopyrightText: Copyright 2024 KUNBUS GmbH
+
+#include "revpi-connect5-overlay.dts"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-connect5-can",
+				     "kunbus,revpi-connect5", "brcm,bcm2712";
+
+			can_20mhz_osc: can_20mhz_osc {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <20000000>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio-line-names =
+				"ID_SDA", // GPIO0
+				"ID_SCL", // GPIO1
+				"I2C1_SDA", // GPIO2
+				"I2C1_SCL", // GPIO3
+				"UART2_TX", // GPIO4
+				"UART2_RX", // GPIO5
+				"INT_CAN0", // GPIO6
+				"UART2_RTS", // GPIO7
+				"INT_IOEX_CORE", // GPIO8
+				"INT_IOX_POWER", // GPIO9
+				"INT_TPM", // GPIO10
+				"SPI1_CS1", // GPIO11
+				"UART4_TX", // GPIO12
+				"UART4_RX", // GPIO13
+				"-", // GPIO14
+				"UART4_RTS", // GPIO15
+				"-", // GPIO16
+				"ID_WP", // GPIO17
+				"SPI1_CS0", // GPIO18
+				"SPI1_MISO", // GPIO19
+				"SPI1_MOSI", // GPIO20
+				"SPI1_CLK", // GPIO21
+				"-", // GPIO22
+				"-", // GPIO23
+				"-", // GPIO24
+				"-", // GPIO25
+				"-", // GPIO26
+				"-", // GPIO27
+
+				"PCIE_PWR_EN", // GPIO28
+				"FAN_TACH", // GPIO29
+				"HOST_SDA", // GPIO30
+				"HOST_SCL", // GPIO31
+				"ETH_RST_N", // GPIO32
+				"PCIE_DET_WAKE", // GPIO33
+
+				"CD0_IO0_MICCLK", // GPIO34
+				"CD0_IO0_MICDAT0", // GPIO35
+				"RP1_PCIE_CLKREQ_N", // GPIO36
+				"ETH_IRQ_N", // GPIO37
+				"SDA0", // GPIO38
+				"SCL0", // GPIO39
+				"-", // GPIO40
+				"-", // GPIO41
+				"USB_VBUS_EN", // GPIO42
+				"USB_OC_N", // GPIO43
+				"RP1_STAT_LED", // GPIO44
+				"FAN_PWM", // GPIO45
+				"-", // GPIO46
+				"2712_WAKE", // GPIO47
+				"-", // GPIO48
+				"-", // GPIO49
+				"-", // GPIO50
+				"-", // GPIO51
+				"-", // GPIO52
+				"-"; // GPIO53
+
+			can0_pins: can0_pins {
+				/* IRQ */
+				function = "gpio";
+				pins = "gpio6";
+				bias-disable;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			exp_gpio_core: gpio@22 {
+				gpio-line-names =
+					"LEDS_PWRRED", // GPIO0 / P0_0
+					"LEDS_A1RED", // GPIO1 / P0_1
+					"LEDS_A1GRN", // GPIO2 / P0_2
+					"LEDS_A1BLUE", // GPIO3 / P0_3
+					"LEDS_A2RED", // GPIO4 / P0_4
+					"LEDS_A2GRN", // GPIO5 / P0_5
+					"LEDS_A2BLUE", // GPIO6 / P0_6
+					"PWRBLUE", // GPIO7 / P0_7
+					"PB_L_SNIFF", // GPIO8 / P1_0
+					"PB_L_ACK", // GPIO9 / P1_1
+					"PB_L_MPX_S", // GPIO10 / P1_2
+					"PB_TERM", // GPIO11 / P1_3
+					"-", // GPIO12 / P1_4
+					"-", // GPIO13 / P1_5
+					"-", // GPIO14 / P1_6
+					"PB_L_DETECT", // GPI15 / P1_7
+					"CAN0_TERM", // GPIO16 / P2_0
+					"CAN0_STBY", // GPIO17 / P2_1
+					"USB_OCI1", // GPIO18 / P2_2
+					"USB_OCI2", // GPIO19 / P2_3
+					"ETHB_RST", // GPIO20 / P2_4
+					"PBETH_L_RST", // GPIO21 / P2_5
+					"-", // GPIO22 / P2_6
+					"PG_1V05"; // GPIO23 / P2_7
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi1>;
+		__overlay__ {
+			cs-gpios = <&gpio 18 GPIO_ACTIVE_LOW>, <&gpio 11 GPIO_ACTIVE_LOW>;
+
+			can0: can@1 {
+				compatible = "microchip,mcp251863";
+				pinctrl-names = "default";
+				pinctrl-0 = <&can0_pins>;
+				reg = <1>;
+				clocks = <&can_20mhz_osc>;
+				/*
+				 * FSCK must be less than or equal to 0.85*(FSYSCLK/2)
+				 * 0.85 * (20MHz / 2) = 8.5MHz
+				 */
+				spi-max-frequency = <8500000>;
+				interrupts-extended = <&gpio 6 IRQ_TYPE_LEVEL_LOW>;
+				termination-gpios = <&exp_gpio_core 16 GPIO_ACTIVE_HIGH>;
+				termination-ohms = <120>;
+			};
+		};
+	};
+};

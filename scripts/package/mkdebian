@@ -245,6 +245,7 @@ cat <<EOF >> debian/control
 
 Package: linux-headers-$version
 Architecture: $debarch
+Depends: \${shlibs:Depends}
 Description: Linux kernel headers for $version on $debarch
  This package provides kernel header files for $version on $debarch
  .
