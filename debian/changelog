@@ -1,3 +1,44 @@
+linux-revpi-v8 (6.6.46-rt39-revpi4-1+deb12+1) bookworm; urgency=medium
+
+  [ Masahiro Yamada ]
+  * kbuild: slim down package for building external modules
+
+  [ Thomas Böhler ]
+  * package: debian: strip headers package
+  * package: debian: add missing Depends to linux-headers
+  * package: debian: ignore package-has-long-file-name with lintian
+  * package: debian: ignore lintian warning dbg-package-missing-depends
+
+  [ Philipp Rosenberger ]
+  * arm/dts/overlays: Add RevPi Connect 5 overlay stub
+  * dts/connect5: Add gpio-line-names
+  * dts/connect5: Add i2c1 configuration
+  * dts/connect5: Add the io expander of the core board to i2c1
+  * dts/connect5: Add the io expander of the power board to i2c1
+  * dts/connect5: Add leds: PWR (red), A1..A5 (RGB)
+  * dts/connect5: Add rtc (PCF2131) to i2c1
+  * dts/connect5: Disable the rpi_rtc
+  * dts/connect5: Add TPM (SLB 9670VQ2.0) to SPI1
+  * dts/connect5: Add PiBridge uart (UART2) and sniff pins
+  * dts/connect5: Add RS485 front interface at UART4
+  * dts/connect5: Swap LED mode of SoC Ethernet
+  * dts: Add Connect 5 with CAN controller (MCP251863)
+  * dts: Add Connect 5 with 2xCAN controller (MCP251863)
+
+  [ Lino Sanfilippo ]
+  * dts: Add overlay for RevPi HAT EEPROM (CM5)
+
+  [ Markus Kaupert ]
+  * dts/revpi-connect5-can-can: fix termination pin of can1
+
+  [ Lino Sanfilippo ]
+  * dts/connect5: add GPIOs for PiBridge gigabit ethernet
+
+  [ Nicolai Buchwitz ]
+  * dts/connect5: PiBridge mux is active low
+
+ -- Lino Sanfilippo <l.sanfilippo@kunbus.com>  Tue, 12 Nov 2024 11:14:16 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi3-1+deb12+1) bookworm; urgency=medium
 
   [ Thomas Böhler ]

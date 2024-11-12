@@ -1,0 +1,7 @@
+# Ignore the warning because the file names for the headers and image can't be
+# shorter than they are due to the following constraints:
+# - "rpi" needs to be in the name
+# - version string needs to be in the name, consists of:
+#   - mainline version (i.e. 6.6.0)
+#   - revpi version (i.e. revpi5)
+package-has-long-file-name

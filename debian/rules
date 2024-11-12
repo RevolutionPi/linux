@@ -50,10 +50,14 @@ define binary
 	$(Q)dh_testroot $(DH_OPTIONS)
 	$(Q)dh_prep $(DH_OPTIONS)
 	$(Q)+$(MAKE) $(make-opts) run-command KBUILD_RUN_COMMAND='+$$(srctree)/scripts/package/builddeb $(package)'
+	$(if $(filter-out %$(meta-pkg-append),$(filter linux-headers-%,$(package))),\
+		$(Q)dh_strip $(DH_OPTIONS) --no-automatic-dbgsym)
 	$(Q)dh_installdocs $(DH_OPTIONS)
 	$(Q)dh_installchangelogs $(DH_OPTIONS)
+	$(Q)dh_lintian $(DH_OPTIONS)
 	$(Q)dh_compress $(DH_OPTIONS)
 	$(Q)dh_fixperms $(DH_OPTIONS)
+	$(Q)dh_shlibdeps $(DH_OPTIONS)
 	$(Q)dh_gencontrol $(DH_OPTIONS) -- -f$(call mk-files,$@)
 	$(Q)dh_md5sums $(DH_OPTIONS)
 	$(Q)dh_builddeb $(DH_OPTIONS) -- $(addprefix -Z,$(KDEB_COMPRESS))
