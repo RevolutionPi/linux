@@ -48,6 +48,7 @@
 #define PCF2127_BIT_CTRL3_BLF			BIT(2)
 #define PCF2127_BIT_CTRL3_BF			BIT(3)
 #define PCF2127_BIT_CTRL3_BTSE			BIT(4)
+#define PCF2127_CTRL3_PM			GENMASK(7, 5)
 /* Time and date registers */
 #define PCF2127_REG_TIME_BASE		0x03
 #define PCF2127_BIT_SC_OSF			BIT(7)
@@ -1232,11 +1233,18 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 	 * Clear battery interrupt flags which can block new trigger events.
 	 * Note: This is the default chip behaviour but added to ensure
 	 * correct tamper timestamp and interrupt function.
+	 * FIXME: Enable battery switch-over standard mode, battery low detection and
+	 * extra power fail detection. This overrides any setting done by any
+	 * bootloader/firmware. This is needed as the default for PCF2131 is disabling
+	 * battery switch-over and battery low detection. This workaround might be
+	 * replaced by a future patch which was mentiond here:
+	 * https://lore.kernel.org/lkml/20241114085153e4e23a7f@mail.local/
 	 */
 	ret = regmap_update_bits(pcf2127->regmap, PCF2127_REG_CTRL3,
 				 PCF2127_BIT_CTRL3_BTSE |
 				 PCF2127_BIT_CTRL3_BIE |
-				 PCF2127_BIT_CTRL3_BLIE, 0);
+				 PCF2127_BIT_CTRL3_BLIE |
+				 PCF2127_CTRL3_PM, 0);
 	if (ret) {
 		dev_err(dev, "%s: interrupt config (ctrl3) failed\n",
 			__func__);
