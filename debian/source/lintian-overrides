@@ -15,4 +15,4 @@ linux-revpi-v8 source: custom-compression-in-debian-rules
 # These executables are test cases and source is provided
 linux-revpi-v8 source: source-contains-prebuilt-windows-binary [tools/perf/tests/pe-file.exe.debug]
 linux-revpi-v8 source: source-contains-prebuilt-windows-binary [tools/perf/tests/pe-file.exe]
-linux-revpi-v8 source: dbg-package-missing-depends linux-image-6.6.0-revpi4-rpi-v8-dbg
+linux-revpi-v8 source: dbg-package-missing-depends linux-image-6.6.0-revpi5-rpi-v8-dbg

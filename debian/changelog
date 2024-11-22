@@ -1,3 +1,10 @@
+linux-revpi-v8 (6.6.46-rt39-revpi5-1+deb12+1) bookworm; urgency=medium
+
+  [ Philipp Rosenberger ]
+  * rtc: pcf2127: WORKAROUND: Force battery switch-over mode
+
+ -- Lino Sanfilippo <l.sanfilippo@kunbus.com>  Fri, 22 Nov 2024 11:59:42 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi4-1+deb12+1) bookworm; urgency=medium
 
   [ Masahiro Yamada ]
