@@ -401,4 +401,14 @@
 			led-modes = <0x08 0x00>;
 		};
 	};
+
+	/* PCIe x1 interface */
+	fragment@8 {
+		target = <&pciex1>;
+		__overlay__ {
+			/* Use RC MSI target instead of MIP MSIx target */
+			msi-parent = <&pciex1>;
+			status = "okay";
+		};
+	};
 };
