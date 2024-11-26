@@ -411,4 +411,12 @@
 			status = "okay";
 		};
 	};
+
+	/* Disable ASPM due to link errors with first downstream ethernet controller */
+	fragment@9 {
+		target = <&chosen>;
+		__overlay__ {
+			bootargs = "pcie_aspm=off";
+		};
+	};
 };
