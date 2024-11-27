@@ -1,0 +1,8 @@
+linux-revpi-v8 (6.6.46-rt39-revpi6-1+deb12+1) bookworm; urgency=medium
+
+  * Fixed a bug where the LAN B (eth1) interface could become unresponsive.
+  This issue was caused by the ASPM power management functions for the
+  PCIe controller. To address this, ASPM has been disabled for the PCIe
+  controller.
+
+ -- Philipp Rosenberger <p.rosenberger@kunbus.com>  Wed, 27 Nov 2024 15:24:25 +0100

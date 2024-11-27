@@ -1,3 +1,11 @@
+linux-revpi-v8 (6.6.46-rt39-revpi6-1+deb12+1) bookworm; urgency=medium
+
+  [ Nicolai Buchwitz ]
+  * dts/connect5: Use RC MSI target instead of MSI-MIP
+  * dts/connect5: Disable ASPM
+
+ -- Philipp Rosenberger <p.rosenberger@kunbus.com>  Wed, 27 Nov 2024 14:13:38 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi5-1+deb12+1) bookworm; urgency=medium
 
   [ Philipp Rosenberger ]
