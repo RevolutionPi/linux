@@ -322,7 +322,7 @@ DECLARE_EVENT_CLASS(pibridge_serdev_name_class,
 		__string(name, dev_name(&serdev->dev))
 	),
 	TP_fast_assign(
-		__assign_str(name, dev_name(&serdev->dev));
+		__assign_str(name);
 	),
 	TP_printk(
 		"Serdev %s",
