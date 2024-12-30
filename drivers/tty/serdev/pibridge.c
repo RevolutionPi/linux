@@ -216,11 +216,11 @@ static u8 pibridge_crc8(u8 base, void *data, u16 len)
 	return ret;
 }
 
-static int pibridge_receive_buf(struct serdev_device *serdev,
+static size_t pibridge_receive_buf(struct serdev_device *serdev,
 				const unsigned char *buf, size_t count)
 {
 	struct pibridge *pi = serdev_device_get_drvdata(serdev);
-	int ret;
+	size_t ret;
 
 	mutex_lock(&pi->lock);
 	ret = kfifo_in(&pi->read_fifo, buf, count);
@@ -231,7 +231,7 @@ static int pibridge_receive_buf(struct serdev_device *serdev,
 
 	if (ret < count)
 		dev_warn_ratelimited(&serdev->dev,
-			"failed to fill receive fifo (received: %zd, filled: %d)\n",
+			"failed to fill receive fifo (received: %zu, filled: %zu)\n",
 			count, ret);
 	return ret;
 }
