@@ -334,4 +334,38 @@
 			led-modes = <0x08 0x00>;
 		};
 	};
+
+	/*
+	 * Enable spi0 on 40-43 in order to support bootloader
+	 * eeprom update with rpi-eeprom-update.
+	 */
+	fragment@10 {
+		target = <&spi0>;
+		__overlay__ {
+			cs-gpios = <&gpio 43 1>;
+			status = "okay";
+
+			spidev1: spidev@1{
+				status = "disabled";
+			};
+		};
+	};
+
+	fragment@11 {
+		target = <&spi0_cs_pins>;
+		__overlay__ {
+			brcm,pins = <43>;
+			brcm,function = <1>; /* output */
+			status = "okay";
+		};
+	};
+
+	fragment@12 {
+		target = <&spi0_pins>;
+		__overlay__ {
+			brcm,pins = <40 41 42>;
+			brcm,function = <3>; /* alt4 */
+			status = "okay";
+		};
+	};
 };
