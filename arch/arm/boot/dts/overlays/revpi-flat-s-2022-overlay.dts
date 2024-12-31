@@ -456,6 +456,40 @@
 		};
 	};
 
+	/*
+	 * Enable spi0 on 40-43 in order to support bootloader
+	 * eeprom update with rpi-eeprom-update.
+	 */
+	fragment@13 {
+		target = <&spi0>;
+		__overlay__ {
+			cs-gpios = <&gpio 43 1>;
+			status = "okay";
+
+			spidev1: spidev@1{
+				status = "disabled";
+			};
+		};
+	};
+
+	fragment@14 {
+		target = <&spi0_cs_pins>;
+		__overlay__ {
+			brcm,pins = <43>;
+			brcm,function = <1>; /* output */
+			status = "okay";
+		};
+	};
+
+	fragment@15 {
+		target = <&spi0_pins>;
+		__overlay__ {
+			brcm,pins = <40 41 42>;
+			brcm,function = <3>; /* alt4 */
+			status = "okay";
+		};
+	};
+
 	__overrides__ {
 		bootargs = <&chosen_overlay>,"bootargs";
 		dsa = <&ksz8795>,"status=okay";
