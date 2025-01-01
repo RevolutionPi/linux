@@ -439,6 +439,7 @@
 	fragment@10 {
 		target = <&hdmi0>;
 		__overlay__ {
+			compatible = "disabled";
 			status = "disabled";
 		};
 	};
@@ -446,6 +447,7 @@
 	fragment@11 {
 		target = <&ddc0>;
 		__overlay__ {
+			compatible = "disabled";
 			status = "disabled";
 		};
 	};
