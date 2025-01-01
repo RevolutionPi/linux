@@ -419,4 +419,32 @@
 			bootargs = "pcie_aspm=off";
 		};
 	};
+
+	/* Permanently disable HDMI1 */
+	fragment@10 {
+		target = <&hdmi1>;
+		__overlay__ {
+			/* make compatible unusable so it can't get probed */
+			compatible = "disabled";
+			status = "disabled";
+		};
+	};
+
+	fragment@11 {
+		target = <&ddc1>;
+		__overlay__ {
+			/* make compatible unusable so it can't get probed */
+			compatible = "disabled";
+			status = "disabled";
+		};
+	};
+
+	fragment@12 {
+		target = <&pixelvalve1>;
+		__overlay__ {
+			/* make compatible unusable so it can't get probed */
+			compatible = "disabled";
+			status = "disabled";
+		};
+	};
 };
