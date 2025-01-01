@@ -368,4 +368,32 @@
 			status = "okay";
 		};
 	};
+
+	/* Permanently disable HDMI1 */
+	fragment@13 {
+		target = <&hdmi1>;
+		__overlay__ {
+			/* make compatible unusable so it can't get probed */
+			compatible = "disabled";
+			status = "disabled";
+		};
+	};
+
+	fragment@14 {
+		target = <&ddc1>;
+		__overlay__ {
+			/* make compatible unusable so it can't get probed */
+			compatible = "disabled";
+			status = "disabled";
+		};
+	};
+
+	fragment@15 {
+		target = <&pixelvalve4>;
+		__overlay__ {
+			/* make compatible unusable so it can't get probed */
+			compatible = "disabled";
+			status = "disabled";
+		};
+	};
 };
