@@ -3,6 +3,7 @@
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/mfd/rp1.h>
 
 /dts-v1/;
 /plugin/;
@@ -374,6 +375,9 @@
 			pinctrl-0 = <&pb_uart_pins>;
 			linux,rs485-enabled-at-boot-time;
 			rs485-term-gpios = <&exp_gpio_core 11 GPIO_ACTIVE_HIGH>;
+			dmas = <&rp1_dma RP1_DMA_UART2_TX>,
+			       <&rp1_dma RP1_DMA_UART2_RX>;
+			dma-names = "tx", "rx";
 			status = "okay";
 
 			pi_bridge {
@@ -391,6 +395,9 @@
 			linux,rs485-enabled-at-boot-time;
 			rs485-rts-active-low;
 			rs485-term-gpios = <&exp_gpio_power 4 GPIO_ACTIVE_HIGH>;
+			dmas = <&rp1_dma RP1_DMA_UART4_TX>,
+			       <&rp1_dma RP1_DMA_UART4_RX>;
+			dma-names = "tx", "rx";
 			status = "okay";
 		};
 	};
