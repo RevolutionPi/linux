@@ -1304,8 +1304,11 @@ static void pl011_rs485_tx_stop(struct uart_amba_port *uap)
 			break;
 		}
 
-		usleep_range(uap->rs485_tx_drain_interval,
-			     uap->rs485_tx_drain_interval + 10);
+		if (uap->using_tx_dma)
+			udelay(uap->rs485_tx_drain_interval);
+		else
+			usleep_range(uap->rs485_tx_drain_interval,
+					uap->rs485_tx_drain_interval + 10);
 		i++;
 	}
 
