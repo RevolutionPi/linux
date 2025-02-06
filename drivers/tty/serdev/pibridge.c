@@ -369,8 +369,7 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_warn_ratelimited(&serdev->dev,
-			"failed to send gate-datagram\n");
+		dev_dbg(&serdev->dev, "failed to send gate-datagram\n");
 		ret = -EIO;
 	}
 
@@ -383,6 +382,7 @@ EXPORT_SYMBOL(pibridge_req_send_gate);
 int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			  void *rcv_buf, u8 rcv_len, u16 tmt)
 {
+	struct serdev_device *serdev = pibridge_s->serdev;
 	struct pibridge_pkthdr_gate pkthdr;
 	u8 to_receive;
 	u8 to_discard;
@@ -393,7 +393,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	pibridge_clear_fifo();
 
 	if (pibridge_req_send_gate(dst, cmd, snd_buf, snd_len)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"send message error in gate-req(dst: %d, cmd: %d, len: %d)\n",
 			dst, cmd, snd_len);
 		return -EIO;
@@ -404,7 +404,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 	if (pibridge_recv_timeout(&pkthdr, sizeof(pkthdr), tmt) !=
 	    sizeof(pkthdr)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"receive head error in gate-req(hdr_len: %zd, timeout: %d, data0: %c)\n",
 			sizeof(pkthdr), tmt, snd_buf ? ((u8 *)snd_buf)[0] : 0);
 		return -EIO;
@@ -419,7 +419,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 	if (to_receive) {
 		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"receive data error in gate-req(len: %d)\n",
 				to_receive);
 			return -EIO;
@@ -434,46 +434,46 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		 * received data as well as the following CRC checksum byte.
 		 */
 		if (pibridge_discard_timeout(to_discard + 1, tmt))
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
 				to_discard);
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
 	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"failed to receive CRC in gate-req\n");
+		dev_dbg(&serdev->dev, "failed to receive CRC in gate-req\n");
 		return -EIO;
 	}
 
 	trace_pibridge_receive_gate_crc(crc_rcv, crc);
 
 	if (crc != crc_rcv) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
 			crc_rcv, crc);
-			return -EBADMSG;
+		return -EBADMSG;
 	}
 
 	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"bad responded CMD code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
+
 		return -EBADMSG;
 	}
 
 	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"bad responded OK code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
 		return -EBADMSG;
 	}
 
 	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"bad responded ERR code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
 		return -EBADMSG;
@@ -523,8 +523,7 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_warn_ratelimited(&serdev->dev,
-			"failed to send io-datagram\n");
+		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
 		ret = -EIO;
 	}
 
@@ -537,6 +536,7 @@ EXPORT_SYMBOL(pibridge_req_send_io);
 int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		    u8 rcv_len)
 {
+	struct serdev_device *serdev = pibridge_s->serdev;
 	struct pibridge_pkthdr_io pkthdr;
 	u8 to_receive;
 	u8 to_discard;
@@ -547,15 +547,14 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 	pibridge_clear_fifo();
 
 	if (pibridge_req_send_io(addr, cmd, snd_buf, snd_len)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"send message error in io-req(addr: %d, cmd: %d, len: %d)\n",
 			addr, cmd, snd_len);
 		return -EIO;
 	}
 
 	if (pibridge_recv(&pkthdr, sizeof(pkthdr)) != sizeof(pkthdr)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"receive head error in io-req\n");
+		dev_dbg(&serdev->dev, "receive head error in io-req\n");
 		return -EIO;
 	}
 
@@ -568,7 +567,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 
 	if (to_receive) {
 		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"receive data error in io-req(len: %d)\n",
 				to_receive);
 			return -EIO;
@@ -584,38 +583,38 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		 */
 		if (pibridge_discard_timeout(to_discard + 1,
 					     PIBRIDGE_IO_TIMEOUT))
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
 				to_discard);
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+
+		dev_dbg(&serdev->dev,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
 	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"receive crc error in io-req\n");
+		dev_dbg(&serdev->dev, "receive crc error in io-req\n");
 		return -EIO;
 	}
 
 	trace_pibridge_receive_io_crc(crc_rcv, crc);
 
 	if (crc != crc_rcv) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
 			crc_rcv, crc);
 		return -EBADMSG;
 	}
 
 	if (pkthdr.addr != addr) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"unexpected response addr 0x%02x\n", pkthdr.addr);
+		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
+			pkthdr.addr);
 		return -EBADMSG;
 	}
 
 	if (!pkthdr.rsp) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"response flag not set in received packet\n");
 		return -EBADMSG;
 	}
