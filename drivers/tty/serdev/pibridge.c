@@ -72,6 +72,84 @@ do {									\
 
 #define PIBRIDGE_INC_STATS(counter) PIBRIDGE_ADD_STATS(counter, 1)
 
+#define pibridge_descriptor_attr(field, format_string)			\
+static ssize_t field##_show(struct device_driver *drv, char *buf)	\
+{									\
+	u64 counter;							\
+	PIBRIDGE_GET_STATS(counter, field);				\
+	return sysfs_emit(buf, "%llu\n", counter);			\
+}
+
+pibridge_descriptor_attr(tx_bytes, "%u\n");
+pibridge_descriptor_attr(tx_err, "%u\n");
+pibridge_descriptor_attr(tx_io_err, "%u\n");
+pibridge_descriptor_attr(tx_gate_err, "%u\n");
+pibridge_descriptor_attr(rx_bytes, "%u\n");
+pibridge_descriptor_attr(rx_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_hdr_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_data_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_crc_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_crc_inval, "%u\n");
+pibridge_descriptor_attr(rx_gate_format_inval, "%u\n");
+pibridge_descriptor_attr(rx_gate_discarded, "%u\n");
+pibridge_descriptor_attr(rx_io_hdr_err, "%u\n");
+pibridge_descriptor_attr(rx_io_data_err, "%u\n");
+pibridge_descriptor_attr(rx_io_crc_err, "%u\n");
+pibridge_descriptor_attr(rx_io_crc_inval, "%u\n");
+pibridge_descriptor_attr(rx_io_format_inval, "%u\n");
+pibridge_descriptor_attr(rx_io_discarded, "%u\n");
+
+static DRIVER_ATTR_RO(tx_bytes);
+static DRIVER_ATTR_RO(tx_err);
+static DRIVER_ATTR_RO(tx_io_err);
+static DRIVER_ATTR_RO(tx_gate_err);
+static DRIVER_ATTR_RO(rx_bytes);
+static DRIVER_ATTR_RO(rx_err);
+static DRIVER_ATTR_RO(rx_gate_hdr_err);
+static DRIVER_ATTR_RO(rx_gate_data_err);
+static DRIVER_ATTR_RO(rx_gate_crc_err);
+static DRIVER_ATTR_RO(rx_gate_crc_inval);
+static DRIVER_ATTR_RO(rx_gate_format_inval);
+static DRIVER_ATTR_RO(rx_gate_discarded);
+static DRIVER_ATTR_RO(rx_io_hdr_err);
+static DRIVER_ATTR_RO(rx_io_data_err);
+static DRIVER_ATTR_RO(rx_io_crc_err);
+static DRIVER_ATTR_RO(rx_io_crc_inval);
+static DRIVER_ATTR_RO(rx_io_format_inval);
+static DRIVER_ATTR_RO(rx_io_discarded);
+
+static struct attribute *pibridge_dev_statistics_attrs[] = {
+	&driver_attr_tx_bytes.attr,
+	&driver_attr_tx_err.attr,
+	&driver_attr_tx_io_err.attr,
+	&driver_attr_tx_gate_err.attr,
+	&driver_attr_rx_bytes.attr,
+	&driver_attr_rx_err.attr,
+	&driver_attr_rx_gate_hdr_err.attr,
+	&driver_attr_rx_gate_data_err.attr,
+	&driver_attr_rx_gate_crc_err.attr,
+	&driver_attr_rx_gate_crc_inval.attr,
+	&driver_attr_rx_gate_format_inval.attr,
+	&driver_attr_rx_gate_discarded.attr,
+	&driver_attr_rx_io_hdr_err.attr,
+	&driver_attr_rx_io_data_err.attr,
+	&driver_attr_rx_io_crc_err.attr,
+	&driver_attr_rx_io_crc_inval.attr,
+	&driver_attr_rx_io_format_inval.attr,
+	&driver_attr_rx_io_discarded.attr,
+	NULL,
+};
+
+static const struct attribute_group pibridge_dev_statistics_group = {
+	.name = "stats",
+	.attrs = pibridge_dev_statistics_attrs,
+};
+
+static const struct attribute_group *pibridge_dev_groups[] = {
+	&pibridge_dev_statistics_group,
+	NULL,
+};
+
 static u8 pibridge_crc8(u8 base, void *data, u16 len)
 {
 	u8 ret = base;
@@ -557,6 +635,7 @@ MODULE_DEVICE_TABLE(of, pibridge_of_match);
 static struct serdev_device_driver pibridge_driver = {
 	.driver	= {
 		.name		= "pi-bridge",
+		.groups = pibridge_dev_groups,
 		.of_match_table	= of_match_ptr(pibridge_of_match),
 	},
 	.probe	= pibridge_probe,
