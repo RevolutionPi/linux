@@ -20,14 +20,57 @@
 #define PIBRIDGE_RESP_OK		0x4000
 #define PIBRIDGE_RESP_ERR		0x8000
 
+struct pibridge_stats {
+	u64 tx_bytes;
+	u64 tx_err;
+	u64 tx_io_err;
+	u64 tx_gate_err;
+	u64 rx_bytes;
+	u64 rx_err;
+	u64 rx_gate_hdr_err;
+	u64 rx_gate_data_err;
+	u64 rx_gate_crc_err;
+	u64 rx_gate_crc_inval;
+	u64 rx_gate_format_inval;
+	u64 rx_gate_discarded;
+	u64 rx_io_hdr_err;
+	u64 rx_io_data_err;
+	u64 rx_io_crc_err;
+	u64 rx_io_crc_inval;
+	u64 rx_io_format_inval;
+	u64 rx_io_discarded;
+
+	struct u64_stats_sync syncp;
+};
+
 struct pibridge {
 	struct serdev_device *serdev;
 	struct mutex lock;
 	struct kfifo read_fifo;
 	wait_queue_head_t read_queue;
+	struct pibridge_stats stats;
 };
 
 static struct pibridge *pibridge_s; /* unique instance of the pibridge */
+
+#define PIBRIDGE_GET_STATS(st, counter)				\
+{									\
+	unsigned int start;						\
+	do {								\
+		start = u64_stats_fetch_begin(&(pibridge_s->stats).syncp);  \
+		st = pibridge_s->stats.counter;				\
+	} while (u64_stats_fetch_retry(&(pibridge_s->stats).syncp, start)); \
+}
+
+#define PIBRIDGE_ADD_STATS(counter, num)				\
+do {									\
+	u64_stats_update_begin(&(pibridge_s->stats).syncp);		\
+	pibridge_s->stats.counter += num;				\
+	u64_stats_update_end(&(pibridge_s->stats).syncp);		\
+} while (0)
+
+
+#define PIBRIDGE_INC_STATS(counter) PIBRIDGE_ADD_STATS(counter, 1)
 
 static u8 pibridge_crc8(u8 base, void *data, u16 len)
 {
@@ -113,6 +156,8 @@ static int pibridge_probe(struct serdev_device *serdev)
 
 	pibridge_s = pi;
 	pi->serdev = serdev;
+
+	u64_stats_init(&pi->stats.syncp);
 
 	serdev_device_set_drvdata(serdev, pi);
 	serdev_device_set_client_ops(serdev, &pibridge_serdev_ops);
