@@ -20,14 +20,135 @@
 #define PIBRIDGE_RESP_OK		0x4000
 #define PIBRIDGE_RESP_ERR		0x8000
 
+struct pibridge_stats {
+	u64 tx_bytes;
+	u64 tx_err;
+	u64 tx_io_err;
+	u64 tx_gate_err;
+	u64 rx_bytes;
+	u64 rx_err;
+	u64 rx_gate_hdr_err;
+	u64 rx_gate_data_err;
+	u64 rx_gate_crc_err;
+	u64 rx_gate_crc_inval;
+	u64 rx_gate_format_inval;
+	u64 rx_gate_discarded;
+	u64 rx_io_hdr_err;
+	u64 rx_io_data_err;
+	u64 rx_io_crc_err;
+	u64 rx_io_crc_inval;
+	u64 rx_io_format_inval;
+	u64 rx_io_discarded;
+
+	struct u64_stats_sync syncp;
+};
+
 struct pibridge {
 	struct serdev_device *serdev;
 	struct mutex lock;
 	struct kfifo read_fifo;
 	wait_queue_head_t read_queue;
+	struct pibridge_stats stats;
 };
 
 static struct pibridge *pibridge_s; /* unique instance of the pibridge */
+
+#define PIBRIDGE_GET_STATS(st, counter)				\
+{									\
+	unsigned int start;						\
+	do {								\
+		start = u64_stats_fetch_begin(&(pibridge_s->stats).syncp);  \
+		st = pibridge_s->stats.counter;				\
+	} while (u64_stats_fetch_retry(&(pibridge_s->stats).syncp, start)); \
+}
+
+#define PIBRIDGE_ADD_STATS(counter, num)				\
+do {									\
+	u64_stats_update_begin(&(pibridge_s->stats).syncp);		\
+	pibridge_s->stats.counter += num;				\
+	u64_stats_update_end(&(pibridge_s->stats).syncp);		\
+} while (0)
+
+
+#define PIBRIDGE_INC_STATS(counter) PIBRIDGE_ADD_STATS(counter, 1)
+
+#define pibridge_descriptor_attr(field, format_string)			\
+static ssize_t field##_show(struct device_driver *drv, char *buf)	\
+{									\
+	u64 counter;							\
+	PIBRIDGE_GET_STATS(counter, field);				\
+	return sysfs_emit(buf, "%llu\n", counter);			\
+}
+
+pibridge_descriptor_attr(tx_bytes, "%u\n");
+pibridge_descriptor_attr(tx_err, "%u\n");
+pibridge_descriptor_attr(tx_io_err, "%u\n");
+pibridge_descriptor_attr(tx_gate_err, "%u\n");
+pibridge_descriptor_attr(rx_bytes, "%u\n");
+pibridge_descriptor_attr(rx_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_hdr_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_data_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_crc_err, "%u\n");
+pibridge_descriptor_attr(rx_gate_crc_inval, "%u\n");
+pibridge_descriptor_attr(rx_gate_format_inval, "%u\n");
+pibridge_descriptor_attr(rx_gate_discarded, "%u\n");
+pibridge_descriptor_attr(rx_io_hdr_err, "%u\n");
+pibridge_descriptor_attr(rx_io_data_err, "%u\n");
+pibridge_descriptor_attr(rx_io_crc_err, "%u\n");
+pibridge_descriptor_attr(rx_io_crc_inval, "%u\n");
+pibridge_descriptor_attr(rx_io_format_inval, "%u\n");
+pibridge_descriptor_attr(rx_io_discarded, "%u\n");
+
+static DRIVER_ATTR_RO(tx_bytes);
+static DRIVER_ATTR_RO(tx_err);
+static DRIVER_ATTR_RO(tx_io_err);
+static DRIVER_ATTR_RO(tx_gate_err);
+static DRIVER_ATTR_RO(rx_bytes);
+static DRIVER_ATTR_RO(rx_err);
+static DRIVER_ATTR_RO(rx_gate_hdr_err);
+static DRIVER_ATTR_RO(rx_gate_data_err);
+static DRIVER_ATTR_RO(rx_gate_crc_err);
+static DRIVER_ATTR_RO(rx_gate_crc_inval);
+static DRIVER_ATTR_RO(rx_gate_format_inval);
+static DRIVER_ATTR_RO(rx_gate_discarded);
+static DRIVER_ATTR_RO(rx_io_hdr_err);
+static DRIVER_ATTR_RO(rx_io_data_err);
+static DRIVER_ATTR_RO(rx_io_crc_err);
+static DRIVER_ATTR_RO(rx_io_crc_inval);
+static DRIVER_ATTR_RO(rx_io_format_inval);
+static DRIVER_ATTR_RO(rx_io_discarded);
+
+static struct attribute *pibridge_dev_statistics_attrs[] = {
+	&driver_attr_tx_bytes.attr,
+	&driver_attr_tx_err.attr,
+	&driver_attr_tx_io_err.attr,
+	&driver_attr_tx_gate_err.attr,
+	&driver_attr_rx_bytes.attr,
+	&driver_attr_rx_err.attr,
+	&driver_attr_rx_gate_hdr_err.attr,
+	&driver_attr_rx_gate_data_err.attr,
+	&driver_attr_rx_gate_crc_err.attr,
+	&driver_attr_rx_gate_crc_inval.attr,
+	&driver_attr_rx_gate_format_inval.attr,
+	&driver_attr_rx_gate_discarded.attr,
+	&driver_attr_rx_io_hdr_err.attr,
+	&driver_attr_rx_io_data_err.attr,
+	&driver_attr_rx_io_crc_err.attr,
+	&driver_attr_rx_io_crc_inval.attr,
+	&driver_attr_rx_io_format_inval.attr,
+	&driver_attr_rx_io_discarded.attr,
+	NULL,
+};
+
+static const struct attribute_group pibridge_dev_statistics_group = {
+	.name = "stats",
+	.attrs = pibridge_dev_statistics_attrs,
+};
+
+static const struct attribute_group *pibridge_dev_groups[] = {
+	&pibridge_dev_statistics_group,
+	NULL,
+};
 
 static u8 pibridge_crc8(u8 base, void *data, u16 len)
 {
@@ -114,6 +235,8 @@ static int pibridge_probe(struct serdev_device *serdev)
 	pibridge_s = pi;
 	pi->serdev = serdev;
 
+	u64_stats_init(&pi->stats.syncp);
+
 	serdev_device_set_drvdata(serdev, pi);
 	serdev_device_set_client_ops(serdev, &pibridge_serdev_ops);
 
@@ -170,6 +293,11 @@ int pibridge_send(void *buf, u32 len)
 	ret = serdev_device_write(serdev, buf, len, MAX_SCHEDULE_TIMEOUT);
 	serdev_device_wait_until_sent(serdev, 0);
 
+	if (ret >= 0)
+		PIBRIDGE_ADD_STATS(tx_bytes, ret);
+	if (ret != len)
+		PIBRIDGE_INC_STATS(tx_err);
+
 	trace_pibridge_send_end(ret);
 
 	return ret;
@@ -200,8 +328,11 @@ int pibridge_recv_timeout(void *buf, u8 len, u16 timeout)
 
 	trace_pibridge_receive_end(buf, received);
 
-	if (received != len)
+	if (received != len) {
 		trace_pibridge_receive_timeout(received, len, timeout);
+		PIBRIDGE_INC_STATS(rx_err);
+	}
+	PIBRIDGE_ADD_STATS(rx_bytes, received);
 
 	return received;
 }
@@ -226,8 +357,10 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	datagram_size = sizeof(*hdr) + buf_len + 1;
 
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
-	if (!datagram)
+	if (!datagram) {
+		PIBRIDGE_INC_STATS(tx_gate_err);
 		return -ENOMEM;
+	}
 
 	hdr = (struct pibridge_pkthdr_gate *) datagram;
 	hdr->dst = dst;
@@ -246,8 +379,8 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_warn_ratelimited(&serdev->dev,
-			"failed to send gate-datagram\n");
+		dev_dbg(&serdev->dev, "failed to send gate-datagram\n");
+		PIBRIDGE_INC_STATS(tx_gate_err);
 		ret = -EIO;
 	}
 
@@ -260,6 +393,7 @@ EXPORT_SYMBOL(pibridge_req_send_gate);
 int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			  void *rcv_buf, u8 rcv_len, u16 tmt)
 {
+	struct serdev_device *serdev = pibridge_s->serdev;
 	struct pibridge_pkthdr_gate pkthdr;
 	u8 to_receive;
 	u8 to_discard;
@@ -270,7 +404,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	pibridge_clear_fifo();
 
 	if (pibridge_req_send_gate(dst, cmd, snd_buf, snd_len)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"send message error in gate-req(dst: %d, cmd: %d, len: %d)\n",
 			dst, cmd, snd_len);
 		return -EIO;
@@ -281,9 +415,10 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 	if (pibridge_recv_timeout(&pkthdr, sizeof(pkthdr), tmt) !=
 	    sizeof(pkthdr)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"receive head error in gate-req(hdr_len: %zd, timeout: %d, data0: %c)\n",
 			sizeof(pkthdr), tmt, snd_buf ? ((u8 *)snd_buf)[0] : 0);
+		PIBRIDGE_INC_STATS(rx_gate_hdr_err);
 		return -EIO;
 	}
 
@@ -296,9 +431,10 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 	if (to_receive) {
 		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"receive data error in gate-req(len: %d)\n",
 				to_receive);
+			PIBRIDGE_INC_STATS(rx_gate_data_err);
 			return -EIO;
 		}
 		trace_pibridge_receive_gate_data(rcv_buf, to_receive);
@@ -311,48 +447,54 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		 * received data as well as the following CRC checksum byte.
 		 */
 		if (pibridge_discard_timeout(to_discard + 1, tmt))
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
 				to_discard);
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
+		PIBRIDGE_ADD_STATS(rx_gate_discarded, to_discard);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
 	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"failed to receive CRC in gate-req\n");
+		dev_dbg(&serdev->dev, "failed to receive CRC in gate-req\n");
+		PIBRIDGE_INC_STATS(rx_gate_crc_err);
 		return -EIO;
 	}
 
 	trace_pibridge_receive_gate_crc(crc_rcv, crc);
 
 	if (crc != crc_rcv) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
 			crc_rcv, crc);
-			return -EBADMSG;
+		PIBRIDGE_INC_STATS(rx_gate_crc_inval);
+		return -EBADMSG;
 	}
 
 	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"bad responded CMD code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
+
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
 		return -EBADMSG;
 	}
 
 	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"bad responded OK code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
 		return -EBADMSG;
 	}
 
 	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"bad responded ERR code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
 		return -EBADMSG;
 	}
 
@@ -380,8 +522,10 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	datagram_size = sizeof(*hdr) + buf_len + 1;
 
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
-	if (!datagram)
+	if (!datagram) {
+		PIBRIDGE_INC_STATS(tx_io_err);
 		return -ENOMEM;
+	}
 
 	hdr = (struct pibridge_pkthdr_io *) datagram;
 	hdr->addr = addr;
@@ -400,8 +544,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_warn_ratelimited(&serdev->dev,
-			"failed to send io-datagram\n");
+		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
+		PIBRIDGE_INC_STATS(tx_io_err);
 		ret = -EIO;
 	}
 
@@ -414,6 +558,7 @@ EXPORT_SYMBOL(pibridge_req_send_io);
 int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		    u8 rcv_len)
 {
+	struct serdev_device *serdev = pibridge_s->serdev;
 	struct pibridge_pkthdr_io pkthdr;
 	u8 to_receive;
 	u8 to_discard;
@@ -424,15 +569,15 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 	pibridge_clear_fifo();
 
 	if (pibridge_req_send_io(addr, cmd, snd_buf, snd_len)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"send message error in io-req(addr: %d, cmd: %d, len: %d)\n",
 			addr, cmd, snd_len);
 		return -EIO;
 	}
 
 	if (pibridge_recv(&pkthdr, sizeof(pkthdr)) != sizeof(pkthdr)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"receive head error in io-req\n");
+		dev_dbg(&serdev->dev, "receive head error in io-req\n");
+		PIBRIDGE_INC_STATS(rx_io_hdr_err);
 		return -EIO;
 	}
 
@@ -445,9 +590,10 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 
 	if (to_receive) {
 		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"receive data error in io-req(len: %d)\n",
 				to_receive);
+			PIBRIDGE_INC_STATS(rx_io_data_err);
 			return -EIO;
 		}
 		trace_pibridge_receive_io_data(rcv_buf, to_receive);
@@ -461,39 +607,44 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		 */
 		if (pibridge_discard_timeout(to_discard + 1,
 					     PIBRIDGE_IO_TIMEOUT))
-			dev_warn_ratelimited(&pibridge_s->serdev->dev,
+			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
 				to_discard);
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+
+		dev_dbg(&serdev->dev,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
+		PIBRIDGE_ADD_STATS(rx_io_discarded, to_discard);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
 	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"receive crc error in io-req\n");
+		dev_dbg(&serdev->dev, "receive crc error in io-req\n");
+		PIBRIDGE_INC_STATS(rx_io_crc_err);
 		return -EIO;
 	}
 
 	trace_pibridge_receive_io_crc(crc_rcv, crc);
 
 	if (crc != crc_rcv) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
 			crc_rcv, crc);
+		PIBRIDGE_INC_STATS(rx_io_crc_inval);
 		return -EBADMSG;
 	}
 
 	if (pkthdr.addr != addr) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
-			"unexpected response addr 0x%02x\n", pkthdr.addr);
+		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
+			pkthdr.addr);
+		PIBRIDGE_INC_STATS(rx_io_format_inval);
 		return -EBADMSG;
 	}
 
 	if (!pkthdr.rsp) {
-		dev_warn_ratelimited(&pibridge_s->serdev->dev,
+		dev_dbg(&serdev->dev,
 			"response flag not set in received packet\n");
+		PIBRIDGE_INC_STATS(rx_io_format_inval);
 		return -EBADMSG;
 	}
 
@@ -512,6 +663,7 @@ MODULE_DEVICE_TABLE(of, pibridge_of_match);
 static struct serdev_device_driver pibridge_driver = {
 	.driver	= {
 		.name		= "pi-bridge",
+		.groups = pibridge_dev_groups,
 		.of_match_table	= of_match_ptr(pibridge_of_match),
 	},
 	.probe	= pibridge_probe,

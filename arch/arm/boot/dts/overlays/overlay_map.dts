@@ -239,6 +239,11 @@
 		bcm2711;
 	};
 
+	revpi-hat-eeprom {
+		bcm2711;
+		bcm2712 = "revpi-hat-eeprom-pi5";
+	};
+
 	rpi-cirrus-wm5102 {
 		renamed = "cirrus-wm5102";
 	};
