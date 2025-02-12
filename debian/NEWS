@@ -1,3 +1,27 @@
+linux-revpi-v8 (6.6.46-rt39-revpi7-1+deb12+1) bookworm; urgency=medium
+
+  * The revpi-eeprom overlay now automatically selects the correct
+    configuration based on your device's SoC, eliminating the need for manual
+    setup.
+  * Because the PiBridge cannot guarantee packets reach their destination,
+    errors happen occasionally. This is okay because the protocol deals with
+    these errors without restricting functionality and reliability. Instead of
+    printing every single error in the kernel log, they are only printed when a
+    threshold is reached that indicates a connection problem. To ensure error
+    information is not lost, these errors are now published in the sysfs under
+    /sys/bus/serial/drivers/pi-bridge/stats/ for inspection.
+  * Unused HDMI ports on Connect 4, Connect 5, and Flat S devices are now
+    disabled, ensuring only active audio and video interfaces are displayed in
+    the system.
+  * Fixed CAN termination settings to ensure compatibility with systems using
+    GPIOs behind I2C expanders, improving overall reliability.
+  * Integrated the I2C controller directly into the system to prevent rare
+    startup issues related to display initialization.
+  * Enabled support for updating the bootloader EEPROM directly on
+    Connect 4/Flat-S devices without additional hardware steps.
+
+ -- Ramiro Gsponer <r.gsponer@kunbus.com>  Wed, 12 Feb 2025 17:20:11 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi6-1+deb12+1) bookworm; urgency=medium
 
   * Fixed a bug where the LAN B (eth1) interface could become unresponsive.

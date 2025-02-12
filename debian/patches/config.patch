@@ -3,7 +3,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 
 --- /dev/null
 +++ linux/.config
-@@ -0,0 +1,9232 @@
+@@ -0,0 +1,9233 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/arm64 6.6.46 Kernel Configuration
@@ -1701,7 +1701,6 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_BT_AOSPEXT is not set
 +CONFIG_BT_DEBUGFS=y
 +# CONFIG_BT_SELFTEST is not set
-+# CONFIG_BT_FEATURE_DEBUG is not set
 +
 +#
 +# Bluetooth device drivers
@@ -1924,6 +1923,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# Firmware loader
 +#
 +CONFIG_FW_LOADER=y
++CONFIG_FW_LOADER_DEBUG=y
 +CONFIG_EXTRA_FIRMWARE=""
 +# CONFIG_FW_LOADER_USER_HELPER is not set
 +# CONFIG_FW_LOADER_COMPRESS is not set
@@ -3696,7 +3696,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# I2C system bus drivers (mostly embedded / system-on-chip)
 +#
 +CONFIG_I2C_BCM2835=y
-+CONFIG_I2C_BRCMSTB=m
++CONFIG_I2C_BRCMSTB=y
 +# CONFIG_I2C_CADENCE is not set
 +# CONFIG_I2C_CBUS_GPIO is not set
 +CONFIG_I2C_DESIGNWARE_CORE=m
@@ -8905,8 +8905,8 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +CONFIG_CONSOLE_LOGLEVEL_QUIET=4
 +CONFIG_MESSAGE_LOGLEVEL_DEFAULT=4
 +CONFIG_BOOT_PRINTK_DELAY=y
-+# CONFIG_DYNAMIC_DEBUG is not set
-+# CONFIG_DYNAMIC_DEBUG_CORE is not set
++CONFIG_DYNAMIC_DEBUG=y
++CONFIG_DYNAMIC_DEBUG_CORE=y
 +CONFIG_SYMBOLIC_ERRNAME=y
 +CONFIG_DEBUG_BUGVERBOSE=y
 +# end of printk and dmesg options
@@ -9223,6 +9223,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_TEST_SYSCTL is not set
 +# CONFIG_TEST_UDELAY is not set
 +# CONFIG_TEST_STATIC_KEYS is not set
++# CONFIG_TEST_DYNAMIC_DEBUG is not set
 +# CONFIG_TEST_KMOD is not set
 +# CONFIG_TEST_MEMCAT_P is not set
 +# CONFIG_TEST_MEMINIT is not set

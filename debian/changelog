@@ -1,3 +1,32 @@
+linux-revpi-v8 (6.6.46-rt39-revpi7-1+deb12+1) bookworm; urgency=medium
+
+  [ Nicolai Buchwitz ]
+  * dts/overlay_map: Make revpi-eeprom conditionally
+
+  [ Lino Sanfilippo ]
+  * pibridge-serdev: handle error frames
+  * Revert "pibridge-serdev: handle error frames"
+
+  [ Nicolai Buchwitz ]
+  * arm64/configs/revpi-v8: Include brcmstb i2c
+
+  [ Marc Kleine-Budde ]
+  * can: dev: can_set_termination(): allow sleeping GPIOs
+
+  [ Nicolai Buchwitz ]
+  * dts: connect4/flat-s: Add spi0 for eeprom update
+  * dts: connect4/5: Disable unused second HDMI port
+  * dts: flat-s: Disable HDMI port
+
+  [ Lino Sanfilippo ]
+  * pibridge-serdev: Add structure for statistics counters
+  * pibridge-serdev: provide sysfs entries for statistics
+  * pibridge-serdev: Use dynamic debug messages instead of warnings
+  * pibridge-serdev: increase statistics counters
+  * arm*/configs/revpi-*: Enable Dynamic Debugging support in kernel
+
+ -- Ramiro Gsponer <r.gsponer@kunbus.com>  Wed, 12 Feb 2025 18:09:24 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi6-1+deb12+1) bookworm; urgency=medium
 
   [ Nicolai Buchwitz ]
