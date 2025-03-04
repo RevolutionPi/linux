@@ -101,10 +101,10 @@ pibridge_descriptor_attr(rx_io_discarded, "%u\n");
 
 static DRIVER_ATTR_RO(tx_bytes);
 static DRIVER_ATTR_RO(tx_err);
-static DRIVER_ATTR_RO(tx_io_err);
-static DRIVER_ATTR_RO(tx_gate_err);
 static DRIVER_ATTR_RO(rx_bytes);
 static DRIVER_ATTR_RO(rx_err);
+static DRIVER_ATTR_RO(tx_io_err);
+static DRIVER_ATTR_RO(tx_gate_err);
 static DRIVER_ATTR_RO(rx_gate_hdr_err);
 static DRIVER_ATTR_RO(rx_gate_data_err);
 static DRIVER_ATTR_RO(rx_gate_crc_err);
@@ -359,6 +359,7 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
 	if (!datagram) {
 		PIBRIDGE_INC_STATS(tx_gate_err);
+		PIBRIDGE_INC_STATS(tx_err);
 		return -ENOMEM;
 	}
 
@@ -379,8 +380,8 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_dbg(&serdev->dev, "failed to send gate-datagram\n");
 		PIBRIDGE_INC_STATS(tx_gate_err);
+		dev_dbg(&serdev->dev, "failed to send gate-datagram\n");
 		ret = -EIO;
 	}
 
@@ -454,6 +455,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
 		PIBRIDGE_ADD_STATS(rx_gate_discarded, to_discard);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
@@ -470,6 +472,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
 			crc_rcv, crc);
 		PIBRIDGE_INC_STATS(rx_gate_crc_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
@@ -477,8 +480,8 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		dev_dbg(&serdev->dev,
 			"bad responded CMD code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
-
 		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
@@ -487,6 +490,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"bad responded OK code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
 		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
@@ -495,6 +499,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"bad responded ERR code in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
 		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
@@ -524,6 +529,7 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
 	if (!datagram) {
 		PIBRIDGE_INC_STATS(tx_io_err);
+		PIBRIDGE_INC_STATS(tx_err);
 		return -ENOMEM;
 	}
 
@@ -544,8 +550,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
 		PIBRIDGE_INC_STATS(tx_io_err);
+		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
 		ret = -EIO;
 	}
 
@@ -615,6 +621,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
 		PIBRIDGE_ADD_STATS(rx_io_discarded, to_discard);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
@@ -631,6 +638,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
 			crc_rcv, crc);
 		PIBRIDGE_INC_STATS(rx_io_crc_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
@@ -638,6 +646,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
 			pkthdr.addr);
 		PIBRIDGE_INC_STATS(rx_io_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
@@ -645,6 +654,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		dev_dbg(&serdev->dev,
 			"response flag not set in received packet\n");
 		PIBRIDGE_INC_STATS(rx_io_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
