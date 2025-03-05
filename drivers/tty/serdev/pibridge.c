@@ -598,6 +598,22 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 
 	trace_pibridge_receive_io_header(&pkthdr);
 
+	if (pkthdr.addr != addr) {
+		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
+			pkthdr.addr);
+		PIBRIDGE_INC_STATS(rx_io_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
+	if (!pkthdr.rsp) {
+		dev_dbg(&serdev->dev,
+			"response flag not set in received packet\n");
+		PIBRIDGE_INC_STATS(rx_io_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 
 	to_receive = min((u8) pkthdr.len, rcv_len);
@@ -651,21 +667,6 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		return -EBADMSG;
 	}
 
-	if (pkthdr.addr != addr) {
-		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
-			pkthdr.addr);
-		PIBRIDGE_INC_STATS(rx_io_format_inval);
-		PIBRIDGE_INC_STATS(rx_err);
-		return -EBADMSG;
-	}
-
-	if (!pkthdr.rsp) {
-		dev_dbg(&serdev->dev,
-			"response flag not set in received packet\n");
-		PIBRIDGE_INC_STATS(rx_io_format_inval);
-		PIBRIDGE_INC_STATS(rx_err);
-		return -EBADMSG;
-	}
 
 	return to_receive;
 }
