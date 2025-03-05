@@ -425,6 +425,42 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 	trace_pibridge_receive_gate_header(&pkthdr);
 
+	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
+		dev_dbg(&serdev->dev,
+			"bad responded CMD code in gate-req(cmd: %d)\n",
+			pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
+	/* Either OK or ERR flag must be set. */
+	if ((pkthdr.cmd & (PIBRIDGE_RESP_OK | PIBRIDGE_RESP_ERR)) == 0) {
+		dev_dbg(&serdev->dev,
+			"No RESP flag set in gate-req(cmd: %d)\n", pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
+	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
+		if (pkthdr.cmd & PIBRIDGE_RESP_OK) {
+			/* Both flags must not be set. */
+			dev_dbg(&serdev->dev,
+				"ERR and OK flag set in gate-req(cmd: %d)\n",
+				pkthdr.cmd);
+			PIBRIDGE_INC_STATS(rx_gate_format_inval);
+			PIBRIDGE_INC_STATS(rx_err);
+			return -EBADMSG;
+		}
+
+		dev_dbg(&serdev->dev, "ERR flag set in gate-req(cmd: %d)\n",
+			pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 
 	to_receive = min(pkthdr.len, rcv_len);
@@ -472,33 +508,6 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
 			crc_rcv, crc);
 		PIBRIDGE_INC_STATS(rx_gate_crc_inval);
-		PIBRIDGE_INC_STATS(rx_err);
-		return -EBADMSG;
-	}
-
-	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
-		dev_dbg(&serdev->dev,
-			"bad responded CMD code in gate-req(cmd: %d)\n",
-			pkthdr.cmd);
-		PIBRIDGE_INC_STATS(rx_gate_format_inval);
-		PIBRIDGE_INC_STATS(rx_err);
-		return -EBADMSG;
-	}
-
-	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)) {
-		dev_dbg(&serdev->dev,
-			"bad responded OK code in gate-req(cmd: %d)\n",
-			pkthdr.cmd);
-		PIBRIDGE_INC_STATS(rx_gate_format_inval);
-		PIBRIDGE_INC_STATS(rx_err);
-		return -EBADMSG;
-	}
-
-	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
-		dev_dbg(&serdev->dev,
-			"bad responded ERR code in gate-req(cmd: %d)\n",
-			pkthdr.cmd);
-		PIBRIDGE_INC_STATS(rx_gate_format_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
