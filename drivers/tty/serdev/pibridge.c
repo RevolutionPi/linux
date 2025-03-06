@@ -33,6 +33,7 @@ struct pibridge_stats {
 	u64 rx_gate_crc_inval;
 	u64 rx_gate_format_inval;
 	u64 rx_gate_discarded;
+	u64 rx_gate_remote_err;
 	u64 rx_io_hdr_err;
 	u64 rx_io_data_err;
 	u64 rx_io_crc_err;
@@ -92,6 +93,7 @@ pibridge_descriptor_attr(rx_gate_crc_err, "%u\n");
 pibridge_descriptor_attr(rx_gate_crc_inval, "%u\n");
 pibridge_descriptor_attr(rx_gate_format_inval, "%u\n");
 pibridge_descriptor_attr(rx_gate_discarded, "%u\n");
+pibridge_descriptor_attr(rx_gate_remote_err, "%u\n");
 pibridge_descriptor_attr(rx_io_hdr_err, "%u\n");
 pibridge_descriptor_attr(rx_io_data_err, "%u\n");
 pibridge_descriptor_attr(rx_io_crc_err, "%u\n");
@@ -111,6 +113,7 @@ static DRIVER_ATTR_RO(rx_gate_crc_err);
 static DRIVER_ATTR_RO(rx_gate_crc_inval);
 static DRIVER_ATTR_RO(rx_gate_format_inval);
 static DRIVER_ATTR_RO(rx_gate_discarded);
+static DRIVER_ATTR_RO(rx_gate_remote_err);
 static DRIVER_ATTR_RO(rx_io_hdr_err);
 static DRIVER_ATTR_RO(rx_io_data_err);
 static DRIVER_ATTR_RO(rx_io_crc_err);
@@ -131,6 +134,7 @@ static struct attribute *pibridge_dev_statistics_attrs[] = {
 	&driver_attr_rx_gate_crc_inval.attr,
 	&driver_attr_rx_gate_format_inval.attr,
 	&driver_attr_rx_gate_discarded.attr,
+	&driver_attr_rx_gate_remote_err.attr,
 	&driver_attr_rx_io_hdr_err.attr,
 	&driver_attr_rx_io_data_err.attr,
 	&driver_attr_rx_io_crc_err.attr,
@@ -456,7 +460,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 		dev_dbg(&serdev->dev, "ERR flag set in gate-req(cmd: %d)\n",
 			pkthdr.cmd);
-		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_gate_remote_err);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
