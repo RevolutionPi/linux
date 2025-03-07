@@ -6,6 +6,7 @@
 #include <linux/serdev.h>
 #include <linux/pibridge_comm.h>
 #include <linux/wait.h>
+#include <linux/kstrtox.h>
 
 #include "pibridge.h"
 
@@ -149,7 +150,55 @@ static const struct attribute_group pibridge_drv_stats_group = {
 	.attrs = pibridge_drv_stats_attrs,
 };
 
+static ssize_t reset_stats_store(struct device_driver *drv, const char *buf,
+				 size_t count)
+{
+	unsigned long val;
+
+	if (kstrtoul(buf, 10, &val))
+		return -EINVAL;
+
+	if (val != 1)
+		return -EINVAL;
+
+	u64_stats_update_begin(&(pibridge_s->stats).syncp);
+	pibridge_s->stats.tx_bytes = 0;
+	pibridge_s->stats.tx_err = 0;
+	pibridge_s->stats.tx_io_err = 0;
+	pibridge_s->stats.tx_gate_err = 0;
+	pibridge_s->stats.rx_bytes = 0;
+	pibridge_s->stats.rx_err = 0;
+	pibridge_s->stats.rx_gate_hdr_err = 0;
+	pibridge_s->stats.rx_gate_data_err = 0;
+	pibridge_s->stats.rx_gate_crc_err = 0;
+	pibridge_s->stats.rx_gate_crc_inval = 0;
+	pibridge_s->stats.rx_gate_format_inval = 0;
+	pibridge_s->stats.rx_gate_discarded = 0;
+	pibridge_s->stats.rx_gate_remote_err = 0;
+	pibridge_s->stats.rx_io_hdr_err = 0;
+	pibridge_s->stats.rx_io_data_err = 0;
+	pibridge_s->stats.rx_io_crc_err = 0;
+	pibridge_s->stats.rx_io_crc_inval = 0;
+	pibridge_s->stats.rx_io_format_inval = 0;
+	pibridge_s->stats.rx_io_discarded = 0;
+	u64_stats_update_end(&(pibridge_s->stats).syncp);
+
+	return count;
+}
+
+static DRIVER_ATTR_WO(reset_stats);
+
+static struct attribute *pibridge_drv_attrs[] = {
+	&driver_attr_reset_stats.attr,
+	NULL,
+};
+
+static const struct attribute_group pibridge_drv_group = {
+	.attrs = pibridge_drv_attrs,
+};
+
 static const struct attribute_group *pibridge_drv_groups[] = {
+	&pibridge_drv_group,
 	&pibridge_drv_stats_group,
 	NULL,
 };
