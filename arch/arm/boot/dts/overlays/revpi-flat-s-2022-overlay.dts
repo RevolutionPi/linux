@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// SPDX-FileCopyrightText: Copyright 2022-2024 KUNBUS GmbH
+// SPDX-FileCopyrightText: Copyright 2022-2025 KUNBUS GmbH
 
 /*
  * Device tree overlay for Revolution Pi by KUNBUS
@@ -350,15 +350,10 @@
 	};
 
 	fragment@5 {
-		target = <&usb>;
+		target = <&xhci>;
 		#address-cells = <1>;
 		#size-cells = <1>;
-		dwc2_usb: __overlay__ {
-			compatible = "brcm,bcm2835-usb";
-			dr_mode = "host";
-			g-np-tx-fifo-size = <32>;
-			g-rx-fifo-size = <558>;
-			g-tx-fifo-size = <512 512 512 512 512 256 256>;
+		xhci_usb: __overlay__ {
 			status = "okay";
 
 			hub@1 {
