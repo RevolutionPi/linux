@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// SPDX-FileCopyrightText: Copyright 2017-2022 KUNBUS GmbH
+// SPDX-FileCopyrightText: Copyright 2017-2025 KUNBUS GmbH
 
 /*
  * Device tree overlay for Revolution Pi by KUNBUS
@@ -240,17 +240,7 @@
 			g-tx-fifo-size = <512 512 512 512 512 256 256>;
 			status = "okay";
 
-			hub@1 {
-				compatible = "usb424,9514"; /* SMSC LAN9514 */
-				reg = <1>;
-				#address-cells = <1>;
-				#size-cells = <0>;
-
-				eth0: ethernet@1 {
-					compatible = "usb424,ec00";
-					reg = <1>;
-				};
-			};
+			#include "revpi-core-usb.dtsi"
 		};
 	};
 

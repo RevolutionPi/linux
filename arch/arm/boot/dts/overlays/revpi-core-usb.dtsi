@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-FileCopyrightText: Copyright 2025 KUNBUS GmbH
+
+/*
+ * Common USB hierarchy include for RevPi Core 3(+)/S/SE
+ */
+hub: hub@1 {
+	compatible = "usb424,9514"; /* SMSC LAN9514 */
+	reg = <1>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	eth0: ethernet@1 {
+		compatible = "usb424,ec00";
+		reg = <1>;
+	};
+};
