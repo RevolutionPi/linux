@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-FileCopyrightText: Copyright 2025 KUNBUS GmbH
+
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Connect S
+ */
+
+#include "revpi-connect-overlay.dts"
+
+/{
+	compatible = "brcm,bcm2837";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-connect-s",
+				     "kunbus,revpi-connect", "brcm,bcm2711";
+		};
+	};
+
+	/delete-node/ fragment@8;
+	fragment@8 {
+		target = <&xhci>;
+		xhci_usb: __overlay__ {
+			status = "okay";
+
+			#include "revpi-connect-usb.dtsi"
+		};
+	};
+};
