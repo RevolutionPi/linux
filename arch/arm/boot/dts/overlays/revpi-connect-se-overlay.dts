@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// SPDX-FileCopyrightText: Copyright 2022 KUNBUS GmbH
+// SPDX-FileCopyrightText: Copyright 2022-2025 KUNBUS GmbH
 
 /*
  * Device tree overlay for Revolution Pi by KUNBUS
@@ -7,10 +7,10 @@
  * RevPi Connect SE
  */
 
-#include "revpi-connect-overlay.dts"
+#include "revpi-connect-s-overlay.dts"
 
 /{
-	compatible = "brcm,bcm2837";
+	compatible = "brcm,bcm2711";
 
 	fragment@0 {
 		target-path = "/";
