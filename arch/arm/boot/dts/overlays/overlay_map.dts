@@ -278,6 +278,11 @@
 		bcm2711 = "revpi-connect-s";
 	};
 
+	revpi-core {
+		bcm2835;
+		bcm2711 = "revpi-core-s";
+	};
+
 	rpi-cirrus-wm5102 {
 		renamed = "cirrus-wm5102";
 	};
