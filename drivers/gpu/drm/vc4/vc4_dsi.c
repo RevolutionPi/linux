@@ -44,7 +44,6 @@
 
 #define DSI_CMD_FIFO_DEPTH  16
 #define DSI_PIX_FIFO_DEPTH 256
-#define DSI_PIX_FIFO_WIDTH   4
 
 #define DSI0_CTRL		0x00
 
@@ -170,11 +169,15 @@
 #define DSI1_DISP1_CTRL		0x2c
 /* Format of the data written to TXPKT_PIX_FIFO. */
 # define DSI_DISP1_PFORMAT_MASK		VC4_MASK(2, 1)
-# define DSI_DISP1_PFORMAT_SHIFT	1
-# define DSI_DISP1_PFORMAT_16BIT	0
-# define DSI_DISP1_PFORMAT_24BIT	1
-# define DSI_DISP1_PFORMAT_32BIT_LE	2
-# define DSI_DISP1_PFORMAT_32BIT_BE	3
+# define DSI1_DISP1_PFORMAT_SHIFT	1
+# define DSI0_DISP1_PFORMAT_16BIT	0
+# define DSI0_DISP1_PFORMAT_16BIT_ADJ	1
+# define DSI0_DISP1_PFORMAT_24BIT	2
+# define DSI0_DISP1_PFORMAT_32BIT_LE	3 /* NB Invalid, but required for macros to work */
+# define DSI1_DISP1_PFORMAT_16BIT	0
+# define DSI1_DISP1_PFORMAT_24BIT	1
+# define DSI1_DISP1_PFORMAT_32BIT_LE	2
+# define DSI1_DISP1_PFORMAT_32BIT_BE	3
 
 /* DISP1 is always command mode. */
 # define DSI_DISP1_ENABLE		BIT(0)
@@ -286,6 +289,8 @@
 					 DSI1_INT_PR_TO)
 
 #define DSI0_STAT		0x2c
+# define DSI0_STAT_ERR_CONT_LP1		BIT(6)
+# define DSI0_STAT_ERR_CONT_LP0		BIT(5)
 #define DSI0_HSTX_TO_CNT	0x30
 #define DSI0_LPRX_TO_CNT	0x34
 #define DSI0_TA_TO_CNT		0x38
@@ -551,6 +556,7 @@ struct vc4_dsi_variant {
 	unsigned int port;
 
 	bool broken_axi_workaround;
+	unsigned int cmd_fifo_width;
 
 	const char *debugfs_name;
 	const struct debugfs_reg32 *regs;
@@ -818,6 +824,13 @@ static void vc4_dsi_bridge_disable(struct drm_bridge *bridge,
 	disp0_ctrl = DSI_PORT_READ(DISP0_CTRL);
 	disp0_ctrl &= ~DSI_DISP0_ENABLE;
 	DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+}
+
+static void vc4_dsi_bridge_post_disable(struct drm_bridge *bridge,
+					struct drm_bridge_state *state)
+{
+	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
+	struct device *dev = &dsi->pdev->dev;
 
 	/* Reset the DSI and all its fifos. */
 	DSI_PORT_WRITE(CTRL, DSI_CTRL_SOFT_RESET_CFG |
@@ -827,14 +840,6 @@ static void vc4_dsi_bridge_disable(struct drm_bridge *bridge,
 	DSI_PORT_WRITE(PHY_AFEC0, DSI_PORT_BIT(PHY_AFEC0_RESET) |
 		       DSI_PORT_BIT(PHY_AFEC0_PD) |
 		       DSI_PORT_BIT(AFEC0_PD_ALL_LANES));
-
-}
-
-static void vc4_dsi_bridge_post_disable(struct drm_bridge *bridge,
-					struct drm_bridge_state *state)
-{
-	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
-	struct device *dev = &dsi->pdev->dev;
 
 	clk_disable_unprepare(dsi->pll_phy_clock);
 	clk_disable_unprepare(dsi->escape_clock);
@@ -1150,10 +1155,16 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 	/* Set up DISP1 for transferring long command payloads through
 	 * the pixfifo.
 	 */
-	DSI_PORT_WRITE(DISP1_CTRL,
-		       VC4_SET_FIELD(DSI_DISP1_PFORMAT_32BIT_LE,
-				     DSI_DISP1_PFORMAT) |
-		       DSI_DISP1_ENABLE);
+	if (dsi->variant->cmd_fifo_width == 4)
+		DSI_PORT_WRITE(DISP1_CTRL,
+			       VC4_SET_FIELD(DSI_PORT_BIT(DISP1_PFORMAT_32BIT_LE),
+					     DSI_DISP1_PFORMAT) |
+			       DSI_DISP1_ENABLE);
+	else
+		DSI_PORT_WRITE(DISP1_CTRL,
+			       VC4_SET_FIELD(DSI_PORT_BIT(DISP1_PFORMAT_24BIT),
+					     DSI_DISP1_PFORMAT) |
+			       DSI_DISP1_ENABLE);
 
 	/* Bring AFE out of reset. */
 	DSI_PORT_WRITE(PHY_AFEC0,
@@ -1204,10 +1215,9 @@ static int vc4_dsi_bridge_attach(struct drm_bridge *bridge,
 				 &dsi->bridge, flags);
 }
 
-static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
-				     const struct mipi_dsi_msg *msg)
+static ssize_t vc4_dsi_transfer(struct vc4_dsi *dsi,
+				const struct mipi_dsi_msg *msg, bool log_error)
 {
-	struct vc4_dsi *dsi = host_to_dsi(host);
 	struct mipi_dsi_packet packet;
 	u32 pkth = 0, pktc = 0;
 	int i, ret;
@@ -1235,9 +1245,9 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 			pix_fifo_len = 0;
 		} else {
 			cmd_fifo_len = (packet.payload_length %
-					DSI_PIX_FIFO_WIDTH);
+					dsi->variant->cmd_fifo_width);
 			pix_fifo_len = ((packet.payload_length - cmd_fifo_len) /
-					DSI_PIX_FIFO_WIDTH);
+					dsi->variant->cmd_fifo_width);
 		}
 
 		WARN_ON_ONCE(pix_fifo_len >= DSI_PIX_FIFO_DEPTH);
@@ -1255,14 +1265,25 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 
 	for (i = 0; i < cmd_fifo_len; i++)
 		DSI_PORT_WRITE(TXPKT_CMD_FIFO, packet.payload[i]);
-	for (i = 0; i < pix_fifo_len; i++) {
-		const u8 *pix = packet.payload + cmd_fifo_len + i * 4;
+	if (dsi->variant->cmd_fifo_width == 4) {
+		for (i = 0; i < pix_fifo_len; i++) {
+			const u8 *pix = packet.payload + cmd_fifo_len + i * 4;
 
-		DSI_PORT_WRITE(TXPKT_PIX_FIFO,
-			       pix[0] |
-			       pix[1] << 8 |
-			       pix[2] << 16 |
-			       pix[3] << 24);
+			DSI_PORT_WRITE(TXPKT_PIX_FIFO,
+				       pix[0] |
+				       pix[1] << 8 |
+				       pix[2] << 16 |
+				       pix[3] << 24);
+		}
+	} else {
+		for (i = 0; i < pix_fifo_len; i++) {
+			const u8 *pix = packet.payload + cmd_fifo_len + i * 3;
+
+			DSI_PORT_WRITE(TXPKT_PIX_FIFO,
+				       pix[2] |
+				       pix[1] << 8 |
+				       pix[0] << 16);
+		}
 	}
 
 	if (msg->flags & MIPI_DSI_MSG_USE_LPM)
@@ -1316,10 +1337,12 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 	DSI_PORT_WRITE(TXPKT1C, pktc);
 
 	if (!wait_for_completion_timeout(&dsi->xfer_completion,
-					 msecs_to_jiffies(1000))) {
-		dev_err(&dsi->pdev->dev, "transfer interrupt wait timeout");
-		dev_err(&dsi->pdev->dev, "instat: 0x%08x\n",
-			DSI_PORT_READ(INT_STAT));
+					 msecs_to_jiffies(500))) {
+		if (log_error) {
+			dev_err(&dsi->pdev->dev, "transfer interrupt wait timeout");
+			dev_err(&dsi->pdev->dev, "instat: 0x%08x, stat: 0x%08x\n",
+				DSI_PORT_READ(INT_STAT), DSI_PORT_READ(INT_STAT));
+		}
 		ret = -ETIMEDOUT;
 	} else {
 		ret = dsi->xfer_result;
@@ -1362,7 +1385,8 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 	return ret;
 
 reset_fifo_and_return:
-	DRM_ERROR("DSI transfer failed, resetting: %d\n", ret);
+	if (log_error)
+		DRM_ERROR("DSI transfer failed, resetting: %d\n", ret);
 
 	DSI_PORT_WRITE(TXPKT1C, DSI_PORT_READ(TXPKT1C) & ~DSI_TXPKT1C_CMD_EN);
 	udelay(1);
@@ -1372,6 +1396,40 @@ reset_fifo_and_return:
 
 	DSI_PORT_WRITE(TXPKT1C, 0);
 	DSI_PORT_WRITE(INT_EN, DSI_PORT_BIT(INTERRUPTS_ALWAYS_ENABLED));
+	return ret;
+}
+
+static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
+				     const struct mipi_dsi_msg *msg)
+{
+	struct vc4_dsi *dsi = host_to_dsi(host);
+	u32 stat, disp0_ctrl;
+	int ret;
+
+	ret = vc4_dsi_transfer(dsi, msg, false);
+
+	if (ret == -ETIMEDOUT) {
+		stat = DSI_PORT_READ(STAT);
+		disp0_ctrl = DSI_PORT_READ(DISP0_CTRL);
+
+		DSI_PORT_WRITE(STAT, DSI_PORT_BIT(STAT_ERR_CONT_LP1));
+		if (!(disp0_ctrl & DSI_DISP0_ENABLE)) {
+			/* If video mode not enabled, then try recovering by
+			 * enabling it briefly to clear FIFOs and the state.
+			 */
+			disp0_ctrl |= DSI_DISP0_ENABLE;
+			DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+			msleep(30);
+			disp0_ctrl &= ~DSI_DISP0_ENABLE;
+			DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+			msleep(30);
+
+			ret = vc4_dsi_transfer(dsi, msg, true);
+		} else {
+			DRM_ERROR("DSI transfer failed whilst in HS mode stat: 0x%08x\n",
+				  stat);
+		}
+	}
 	return ret;
 }
 
@@ -1479,6 +1537,7 @@ static const struct drm_encoder_funcs vc4_dsi_encoder_funcs = {
 
 static const struct vc4_dsi_variant bcm2711_dsi1_variant = {
 	.port			= 1,
+	.cmd_fifo_width		= 4,
 	.debugfs_name		= "dsi1_regs",
 	.regs			= dsi1_regs,
 	.nregs			= ARRAY_SIZE(dsi1_regs),
@@ -1486,6 +1545,7 @@ static const struct vc4_dsi_variant bcm2711_dsi1_variant = {
 
 static const struct vc4_dsi_variant bcm2835_dsi0_variant = {
 	.port			= 0,
+	.cmd_fifo_width		= 3,
 	.debugfs_name		= "dsi0_regs",
 	.regs			= dsi0_regs,
 	.nregs			= ARRAY_SIZE(dsi0_regs),
@@ -1493,6 +1553,7 @@ static const struct vc4_dsi_variant bcm2835_dsi0_variant = {
 
 static const struct vc4_dsi_variant bcm2835_dsi1_variant = {
 	.port			= 1,
+	.cmd_fifo_width		= 4,
 	.broken_axi_workaround	= true,
 	.debugfs_name		= "dsi1_regs",
 	.regs			= dsi1_regs,

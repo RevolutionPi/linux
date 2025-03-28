@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
-/dts-v1/;
 
 #include "bcm2712-rpi-cm5.dtsi"
 
 / {
 	model = "Raspberry Pi Compute Module 5 Lite";
-
-	__overrides__ {
-		i2c_csi_dsi = <&i2c_csi_dsi>, "status";
-	};
 };
 
 &sd_io_1v8_reg {

@@ -1,6 +1,18 @@
 /dts-v1/;
 
 / {
+	hailo-8 {
+		product = "Raspberry Pi AI Hat, Model Hailo-8";
+		vendor = "Hailo Technologies";
+		overlay = "none,pciex1,pciex1_gen=3";
+	};
+
+	hailo-8l {
+		product = "Raspberry Pi AI Hat, Model Hailo-8L";
+		vendor = "Hailo Technologies";
+		overlay = "none,pciex1,pciex1_gen=3";
+	};
+
 	hifiberry-amp100-1 {
 		uuid = [ 5eb863b8 12f9 41ad 978f 4cee1b3eca62 ];
 		overlay = "hifiberry-amp100";
@@ -94,5 +106,19 @@
 	recalbox-rgbdual {
 		uuid = [ 1c955808 681f 4bbc a2ef b7ea47cd388e ];
 		overlay = "recalboxrgbdual";
+	};
+
+	sensehat-v1 {
+		product = "Sense HAT";
+		vendor = "Raspberry Pi";
+		pver = < 0x0001 >;
+		overlay = "rpi-sense";
+	};
+
+	sensehat-v2 {
+		product = "Sense HAT";
+		vendor = "Raspberry Pi";
+		pver = < 0x0002 >;
+		overlay = "rpi-sense-v2";
 	};
 };

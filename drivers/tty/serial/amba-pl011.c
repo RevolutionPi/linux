@@ -471,6 +471,7 @@ static void pl011_dma_probe(struct uart_amba_port *uap)
 			.src_addr = uap->port.mapbase +
 				pl011_reg_to_offset(uap, REG_DR),
 			.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE,
+			.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE,
 			.direction = DMA_DEV_TO_MEM,
 			.src_maxburst = uap->fifosize >> 2,
 			.device_fc = false,
@@ -1892,6 +1893,13 @@ static void pl011_unthrottle_rx(struct uart_port *port)
 
 	pl011_write(uap->im, uap, REG_IMSC);
 
+#ifdef CONFIG_DMA_ENGINE
+	if (uap->using_rx_dma) {
+		uap->dmacr |= UART011_RXDMAE;
+		pl011_write(uap->dmacr, uap, REG_DMACR);
+	}
+#endif
+
 	uart_port_unlock_irqrestore(&uap->port, flags);
 }
 
@@ -2386,10 +2394,13 @@ pl011_console_write(struct console *co, const char *s, unsigned int count)
 
 	clk_enable(uap->clk);
 
-	if (uap->port.sysrq || oops_in_progress)
-		locked = uart_port_trylock_irqsave(&uap->port, &flags);
+	local_irq_save(flags);
+	if (uap->port.sysrq)
+		locked = 0;
+	else if (oops_in_progress)
+		locked = uart_port_trylock(&uap->port);
 	else
-		uart_port_lock_irqsave(&uap->port, &flags);
+		uart_port_lock(&uap->port);
 
 	/*
 	 *	First save the CR then disable the interrupts
@@ -2430,7 +2441,8 @@ pl011_console_write(struct console *co, const char *s, unsigned int count)
 	}
 
 	if (locked)
-		uart_port_unlock_irqrestore(&uap->port, flags);
+		uart_port_unlock(&uap->port);
+	local_irq_restore(flags);
 
 	clk_disable(uap->clk);
 }
@@ -3169,6 +3181,7 @@ static int __init pl011_init(void)
 static void __exit pl011_exit(void)
 {
 	platform_driver_unregister(&arm_sbsa_uart_platform_driver);
+	platform_driver_unregister(&pl011_axi_platform_driver);
 	amba_driver_unregister(&pl011_driver);
 }
 

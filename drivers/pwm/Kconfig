@@ -217,6 +217,17 @@ config PWM_FSL_FTM
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-fsl-ftm.
 
+config PWM_GPIO
+	tristate "GPIO PWM support"
+	depends on GPIOLIB
+	depends on HIGH_RES_TIMERS
+	help
+	  Generic PWM framework driver for software PWM toggling a GPIO pin
+	  from kernel high-resolution timers.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-gpio.
+
 config PWM_HIBVT
 	tristate "HiSilicon BVT PWM support"
 	depends on ARCH_HISI || COMPILE_TEST
@@ -453,6 +464,17 @@ config PWM_PCA9685
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-pca9685.
+
+config PWM_PIO_RP1
+	tristate "RP1 PIO PWM support"
+	depends on FIRMWARE_RP1 || COMPILE_TEST
+	help
+	  This is a PWM framework driver for Raspberry Pi 5, using the PIO
+	  hardware of RP1 to provide PWM functionality. Supports up to 4
+	  instances on GPIOs in bank 0.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-pio-rp1.
 
 config PWM_PXA
 	tristate "PXA PWM support"

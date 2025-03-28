@@ -1039,7 +1039,7 @@ static int sd_parse_ext_reg_power(struct mmc_card *card, u8 fno, u8 page,
 	card->ext_power.rev = reg_buf[0] & 0xf;
 
 	/* Power Off Notification support at bit 4. */
-	if (reg_buf[1] & BIT(4))
+	if ((reg_buf[1] & BIT(4)) && !mmc_card_broken_sd_poweroff_notify(card))
 		card->ext_power.feature_support |= SD_EXT_POWER_OFF_NOTIFY;
 
 	/* Power Sustenance support at bit 5. */
@@ -1274,14 +1274,6 @@ static int sd_flush_cache(struct mmc_host *host)
 	reg_buf = card->ext_reg_buf;
 
 	/*
-	 * Flushing requires sending CMD49 (adtc), which can't be done as a DCMD
-	 * and conflicts with CQHCI - temporarily turn CQE off to use the SDHCI
-	 * command/argument registers.
-	 */
-	if (host->cqe_on)
-		host->cqe_ops->cqe_off(host);
-
-	/*
 	 * Set Flush Cache at bit 0 in the performance enhancement register at
 	 * 261 bytes offset.
 	 */
@@ -1513,6 +1505,10 @@ cont:
 		if (err)
 			goto free_card;
 	}
+
+	/* Disallow command queueing on unvetted cards unless overridden */
+	if (!(host->caps2 & MMC_CAP2_SD_CQE_PERMISSIVE) && !mmc_card_working_sd_cq(card))
+		card->ext_csd.cmdq_support = false;
 
 	/* Enable command queueing if supported */
 	if (card->ext_csd.cmdq_support && host->caps2 & MMC_CAP2_CQE) {

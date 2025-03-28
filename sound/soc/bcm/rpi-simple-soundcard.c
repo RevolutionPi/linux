@@ -254,6 +254,41 @@ static struct snd_rpi_simple_drvdata drvdata_hifiberrydacplusdsp = {
 	.dai       = snd_hifiberrydacplusdsp_soundcard_dai,
 };
 
+SND_SOC_DAILINK_DEFS(hifiberry_adc,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("snd-soc-dummy", "snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static int hifiberry_adc8x_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
+
+	/* set limits of 8 channels and 192ksps sample rate
+	 */
+	codec_dai->driver->capture.channels_max = 8;
+	codec_dai->driver->capture.rates = SNDRV_PCM_RATE_8000_192000;
+
+	return 0;
+}
+
+static struct snd_soc_dai_link snd_hifiberry_adc8x_dai[] = {
+	{
+		.name           = "HifiBerry ADC8x",
+		.stream_name    = "HifiBerry ADC8x HiFi",
+		.dai_fmt        = SND_SOC_DAIFMT_I2S |
+					SND_SOC_DAIFMT_NB_NF |
+					SND_SOC_DAIFMT_CBS_CFS,
+		.init           = hifiberry_adc8x_init,
+		SND_SOC_DAILINK_REG(hifiberry_adc),
+	},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_hifiberry_adc8x = {
+	.card_name = "snd_rpi_hifiberry_adc8x",
+	.dai       = snd_hifiberry_adc8x_dai,
+	.fixed_bclk_ratio = 64,
+};
+
 SND_SOC_DAILINK_DEFS(hifiberry_amp,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_CODEC("tas5713.1-001b", "tas5713-hifi")),
@@ -319,15 +354,45 @@ static struct snd_rpi_simple_drvdata drvdata_hifiberry_dac = {
 	.dai       = snd_hifiberry_dac_dai,
 };
 
+SND_SOC_DAILINK_DEFS(hifiberry_dac8x,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("snd-soc-dummy", "snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static int hifiberry_dac8x_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
+	struct snd_soc_card *card = rtd->card;
+	struct gpio_desc *gpio_desc;
+	bool has_adc;
 
-	/* override the defaults to reflect 4 x PCM5102A on the card
-	 * and limit the sample rate to 192ksps
-	 */
+	/* Configure the codec for 8 channel playback */
 	codec_dai->driver->playback.channels_max = 8;
 	codec_dai->driver->playback.rates = SNDRV_PCM_RATE_8000_192000;
+
+	/* Activate capture based on ADC8x detection */
+	gpio_desc = devm_gpiod_get(card->dev, "hasadc", GPIOD_IN);
+	if (IS_ERR(gpio_desc)) {
+		dev_err(card->dev, "Failed to get GPIO: %ld\n", PTR_ERR(gpio_desc));
+		return PTR_ERR(gpio_desc);
+	}
+
+	has_adc = gpiod_get_value(gpio_desc);
+
+	if (has_adc) {
+		struct snd_soc_dai_link *dai = rtd->dai_link;
+
+		dev_info(card->dev, "ADC8x detected: capture enabled\n");
+		codec_dai->driver->symmetric_rate = 1;
+		codec_dai->driver->symmetric_channels = 1;
+		codec_dai->driver->symmetric_sample_bits = 1;
+		codec_dai->driver->capture.rates = SNDRV_PCM_RATE_8000_192000;
+		dai->name = "HiFiBerry DAC8xADC8x";
+		dai->stream_name = "HiFiBerry DAC8xADC8x HiFi";
+	} else {
+		dev_info(card->dev, "no ADC8x detected\n");
+		rtd->dai_link->playback_only = 1;  // Disable capture
+	}
 
 	return 0;
 }
@@ -340,7 +405,7 @@ static struct snd_soc_dai_link snd_hifiberry_dac8x_dai[] = {
 					SND_SOC_DAIFMT_NB_NF |
 					SND_SOC_DAIFMT_CBS_CFS,
 		.init           = hifiberry_dac8x_init,
-		SND_SOC_DAILINK_REG(hifiberry_dac),
+		SND_SOC_DAILINK_REG(hifiberry_dac8x),
 	},
 };
 
@@ -445,6 +510,8 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 		.data = (void *) &drvdata_googlevoicehat },
 	{ .compatible = "hifiberrydacplusdsp,hifiberrydacplusdsp-soundcard",
 		.data = (void *) &drvdata_hifiberrydacplusdsp },
+	{ .compatible = "hifiberry,hifiberry-adc8x",
+		.data = (void *) &drvdata_hifiberry_adc8x },
 	{ .compatible = "hifiberry,hifiberry-amp",
 		.data = (void *) &drvdata_hifiberry_amp },
 	{ .compatible = "hifiberry,hifiberry-amp3",

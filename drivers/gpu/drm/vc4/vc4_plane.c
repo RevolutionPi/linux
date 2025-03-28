@@ -265,7 +265,11 @@ static enum vc4_scaling_mode vc4_get_scaling_mode(u32 src, u32 dst)
 {
 	if (dst == src >> 16)
 		return VC4_SCALING_NONE;
-	if (3 * dst >= 2 * (src >> 16))
+
+	if (src <= (1 << 16))
+		/* Source rectangle <= 1 pixel can use TPZ for resize/upscale */
+		return VC4_SCALING_TPZ;
+	else if (3 * dst >= 2 * (src >> 16))
 		return VC4_SCALING_PPF;
 	else
 		return VC4_SCALING_TPZ;
@@ -278,6 +282,8 @@ static bool plane_enabled(struct drm_plane_state *state)
 
 struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+	struct vc4_hvs *hvs = vc4->hvs;
 	struct vc4_plane_state *vc4_state;
 	unsigned int i;
 
@@ -288,10 +294,12 @@ struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 	if (!vc4_state)
 		return NULL;
 
-	memset(&vc4_state->upm, 0, sizeof(vc4_state->upm));
-
-	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++)
-		vc4_state->upm_handle[i] = 0;
+	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++) {
+		if (vc4_state->upm_handle[i])
+			refcount_inc(&hvs->upm_refcounts[vc4_state->upm_handle[i]].refcount);
+	}
+	if (vc4_state->lbm_handle)
+		refcount_inc(&hvs->lbm_refcounts[vc4_state->lbm_handle].refcount);
 
 	vc4_state->dlist_initialized = 0;
 
@@ -311,6 +319,36 @@ struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 	return &vc4_state->base;
 }
 
+void vc4_plane_release_lbm_ida(struct vc4_hvs *hvs, unsigned int lbm_handle)
+{
+	struct vc4_lbm_refcounts *refcount = &hvs->lbm_refcounts[lbm_handle];
+	unsigned long irqflags;
+
+	spin_lock_irqsave(&hvs->mm_lock, irqflags);
+	drm_mm_remove_node(&refcount->lbm);
+	spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
+	refcount->lbm.start = 0;
+	refcount->lbm.size = 0;
+	refcount->size = 0;
+
+	ida_free(&hvs->lbm_handles, lbm_handle);
+}
+
+void vc4_plane_release_upm_ida(struct vc4_hvs *hvs, unsigned int upm_handle)
+{
+	struct vc4_upm_refcounts *refcount = &hvs->upm_refcounts[upm_handle];
+	unsigned long irqflags;
+
+	spin_lock_irqsave(&hvs->mm_lock, irqflags);
+	drm_mm_remove_node(&refcount->upm);
+	spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
+	refcount->upm.start = 0;
+	refcount->upm.size = 0;
+	refcount->size = 0;
+
+	ida_free(&hvs->upm_handles, upm_handle);
+}
+
 void vc4_plane_destroy_state(struct drm_plane *plane,
 			     struct drm_plane_state *state)
 {
@@ -319,18 +357,25 @@ void vc4_plane_destroy_state(struct drm_plane *plane,
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	unsigned int i;
 
-	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++) {
-		unsigned long irqflags;
+	if (vc4_state->lbm_handle) {
+		struct vc4_lbm_refcounts *refcount;
 
-		if (!drm_mm_node_allocated(&vc4_state->upm[i]))
+		refcount = &hvs->lbm_refcounts[vc4_state->lbm_handle];
+
+		if (refcount_dec_and_test(&refcount->refcount))
+			vc4_plane_release_lbm_ida(hvs, vc4_state->lbm_handle);
+	}
+
+	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++) {
+		struct vc4_upm_refcounts *refcount;
+
+		if (!vc4_state->upm_handle[i])
 			continue;
 
-		spin_lock_irqsave(&hvs->mm_lock, irqflags);
-		drm_mm_remove_node(&vc4_state->upm[i]);
-		spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
+		refcount = &hvs->upm_refcounts[vc4_state->upm_handle[i]];
 
-		if (vc4_state->upm_handle[i] > 0)
-			ida_free(&hvs->upm_handles, vc4_state->upm_handle[i]);
+		if (refcount_dec_and_test(&refcount->refcount))
+			vc4_plane_release_upm_ida(hvs, vc4_state->upm_handle[i]);
 	}
 
 	kfree(vc4_state->dlist);
@@ -551,12 +596,17 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 
 	WARN_ON_ONCE(vc4->gen > VC4_GEN_6);
 
-	scale = src / dst;
+	if ((dst << 16) < src) {
+		scale = src / dst;
 
-	/* The specs note that while the reciprocal would be defined
-	 * as (1<<32)/scale, ~0 is close enough.
-	 */
-	recip = ~0 / scale;
+		/* The specs note that while the reciprocal would be defined
+		 * as (1<<32)/scale, ~0 is close enough.
+		 */
+		recip = ~0 / scale;
+	} else {
+		scale = (1 << 16) + 1;
+		recip = (1 << 16) - 1;
+	}
 
 	vc4_dlist_write(vc4_state,
 			/*
@@ -573,7 +623,9 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 /* phase magnitude bits */
 #define PHASE_BITS 6
 
-static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst, u32 xy, int channel, int chroma_offset)
+static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
+			  u32 xy, int channel, int chroma_offset,
+			  bool no_interpolate)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(vc4_state->base.plane->dev);
 	u32 scale = src / dst;
@@ -612,6 +664,7 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst, u
 	phase &= SCALER_PPF_IPHASE_MASK;
 
 	vc4_dlist_write(vc4_state,
+			(no_interpolate ? SCALER_PPF_NOINTERP : 0) |
 			SCALER_PPF_AGC |
 			VC4_SET_FIELD(scale, SCALER_PPF_SCALE) |
 			/*
@@ -806,15 +859,17 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	/* Ch0 H-PPF Word 0: Scaling Parameters */
 	if (vc4_state->x_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state,
-			      vc4_state->src_w[channel], vc4_state->crtc_w, vc4_state->src_x, channel,
-			      state->chroma_siting_h);
+			      vc4_state->src_w[channel], vc4_state->crtc_w, vc4_state->src_x,
+			      channel, state->chroma_siting_h,
+			      state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR);
 	}
 
 	/* Ch0 V-PPF Words 0-1: Scaling Parameters, Context */
 	if (vc4_state->y_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state,
-			      vc4_state->src_h[channel], vc4_state->crtc_h, vc4_state->src_y, channel,
-			      state->chroma_siting_v);
+			      vc4_state->src_h[channel], vc4_state->crtc_h, vc4_state->src_y,
+			      channel, state->chroma_siting_v,
+			      state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR);
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
 
@@ -892,15 +947,18 @@ static int vc4_plane_allocate_lbm(struct drm_plane_state *state)
 {
 	struct drm_device *drm = state->plane->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
+	struct vc4_hvs *hvs = vc4->hvs;
 	struct drm_plane *plane = state->plane;
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	struct vc4_lbm_refcounts *refcount;
+	unsigned long irqflags;
+	int lbm_handle;
 	u32 lbm_size;
+	int ret;
 
 	lbm_size = vc4_lbm_size(state);
-	if (!lbm_size) {
-		vc4_state->lbm_size = 0;
+	if (!lbm_size)
 		return 0;
-	}
 
 	/*
 	 * NOTE: BCM2712 doesn't need to be aligned, since the size
@@ -917,12 +975,73 @@ static int vc4_plane_allocate_lbm(struct drm_plane_state *state)
 	if (WARN_ON(!vc4_state->lbm_offset))
 		return -EINVAL;
 
-	/* FIXME: Add loop here that ensures that the total LBM assigned in this
-	 *  state is less than the total lbm size
+	/* Allocate the LBM memory that the HVS will use for temporary
+	 * storage due to our scaling/format conversion.
 	 */
-	vc4_state->lbm_size = lbm_size;
+	lbm_handle = vc4_state->lbm_handle;
+	if (lbm_handle &&
+	    hvs->lbm_refcounts[lbm_handle].size == lbm_size) {
+		/* Allocation is the same size as the previous user of
+		 * the plane. Keep the allocation.
+		 */
+		vc4_state->lbm_handle = lbm_handle;
+	} else {
+		if (lbm_handle &&
+		    refcount_dec_and_test(&hvs->lbm_refcounts[lbm_handle].refcount)) {
+			vc4_plane_release_lbm_ida(hvs, lbm_handle);
+			vc4_state->lbm_handle = 0;
+		}
+
+		lbm_handle = ida_alloc_range(&hvs->lbm_handles, 1,
+					     VC4_NUM_LBM_HANDLES,
+					     GFP_KERNEL);
+		if (lbm_handle < 0) {
+			drm_dbg_driver(drm, "Out of lbm_handles\n");
+			return lbm_handle;
+		}
+		vc4_state->lbm_handle = lbm_handle;
+
+		refcount = &hvs->lbm_refcounts[lbm_handle];
+		refcount_set(&refcount->refcount, 1);
+		refcount->size = lbm_size;
+
+		spin_lock_irqsave(&hvs->mm_lock, irqflags);
+		ret = drm_mm_insert_node_generic(&vc4->hvs->lbm_mm,
+						 &refcount->lbm,
+						 lbm_size, 1,
+						 0, 0);
+		spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
+
+		if (ret) {
+			drm_dbg_driver(drm, "Failed to allocate LBM entry: %d\n",
+				       ret);
+			refcount_set(&refcount->refcount, 0);
+			ida_free(&hvs->lbm_handles, lbm_handle);
+			vc4_state->lbm_handle = 0;
+			return ret;
+		}
+	}
+
+	vc4_state->dlist[vc4_state->lbm_offset] = hvs->lbm_refcounts[lbm_handle].lbm.start;
 
 	return 0;
+}
+
+static void vc4_plane_free_lbm(struct drm_plane_state *state)
+{
+	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	struct drm_device *drm = state->plane->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(drm);
+	struct vc4_hvs *hvs = vc4->hvs;
+	unsigned int lbm_handle;
+
+	lbm_handle = vc4_state->lbm_handle;
+	if (!lbm_handle)
+		return;
+
+	if (refcount_dec_and_test(&hvs->lbm_refcounts[lbm_handle].refcount))
+		vc4_plane_release_lbm_ida(hvs, lbm_handle);
+	vc4_state->lbm_handle = 0;
 }
 
 static int vc6_plane_allocate_upm(struct drm_plane_state *state)
@@ -940,32 +1059,61 @@ static int vc6_plane_allocate_upm(struct drm_plane_state *state)
 	vc4_state->upm_buffer_lines = SCALER6_PTR0_UPM_BUFF_SIZE_2_LINES;
 
 	for (i = 0; i < info->num_planes; i++) {
+		struct vc4_upm_refcounts *refcount;
+		int upm_handle;
 		unsigned long irqflags;
 		size_t upm_size;
 
 		upm_size = vc6_upm_size(state, i);
 		if (!upm_size)
 			return -EINVAL;
+		upm_handle = vc4_state->upm_handle[i];
 
-		spin_lock_irqsave(&hvs->mm_lock, irqflags);
-		ret = drm_mm_insert_node_generic(&hvs->upm_mm,
-						 &vc4_state->upm[i],
-						 upm_size, HVS_UBM_WORD_SIZE,
-						 0, 0);
-		spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
-		if (ret) {
-			drm_err(drm, "Failed to allocate UPM entry: %d\n", ret);
-			return ret;
+		if (upm_handle &&
+		    hvs->upm_refcounts[upm_handle].size == upm_size) {
+			/* Allocation is the same size as the previous user of
+			 * the plane. Keep the allocation.
+			 */
+			vc4_state->upm_handle[i] = upm_handle;
+		} else {
+			if (upm_handle &&
+			    refcount_dec_and_test(&hvs->upm_refcounts[upm_handle].refcount)) {
+				vc4_plane_release_upm_ida(hvs, upm_handle);
+				vc4_state->upm_handle[i] = 0;
+			}
+
+			upm_handle = ida_alloc_range(&hvs->upm_handles, 1,
+						     VC4_NUM_UPM_HANDLES,
+						     GFP_KERNEL);
+			if (upm_handle < 0) {
+				drm_dbg_driver(drm, "Out of upm_handles\n");
+				return upm_handle;
+			}
+			vc4_state->upm_handle[i] = upm_handle;
+
+			refcount = &hvs->upm_refcounts[upm_handle];
+			refcount_set(&refcount->refcount, 1);
+			refcount->size = upm_size;
+
+			spin_lock_irqsave(&hvs->mm_lock, irqflags);
+			ret = drm_mm_insert_node_generic(&hvs->upm_mm,
+							 &refcount->upm,
+							 upm_size, HVS_UBM_WORD_SIZE,
+							 0, 0);
+			spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
+			if (ret) {
+				drm_dbg_driver(drm, "Failed to allocate UPM entry: %d\n",
+					       ret);
+				refcount_set(&refcount->refcount, 0);
+				ida_free(&hvs->upm_handles, upm_handle);
+				vc4_state->upm_handle[i] = 0;
+				return ret;
+			}
 		}
 
-		ret = ida_alloc_range(&hvs->upm_handles, 1, 32, GFP_KERNEL);
-		if (ret < 0)
-			return ret;
-
-		vc4_state->upm_handle[i] = ret;
-
+		refcount = &hvs->upm_refcounts[upm_handle];
 		vc4_state->dlist[vc4_state->ptr0_offset[i]] |=
-			VC4_SET_FIELD(vc4_state->upm[i].start / HVS_UBM_WORD_SIZE,
+			VC4_SET_FIELD(refcount->upm.start / HVS_UBM_WORD_SIZE,
 				      SCALER6_PTR0_UPM_BASE) |
 			VC4_SET_FIELD(vc4_state->upm_handle[i] - 1,
 				      SCALER6_PTR0_UPM_HANDLE) |
@@ -974,6 +1122,29 @@ static int vc6_plane_allocate_upm(struct drm_plane_state *state)
 	}
 
 	return 0;
+}
+
+static void vc6_plane_free_upm(struct drm_plane_state *state)
+{
+	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	struct drm_device *drm = state->plane->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(drm);
+	struct vc4_hvs *hvs = vc4->hvs;
+	unsigned int i;
+
+	WARN_ON_ONCE(vc4->gen < VC4_GEN_6);
+
+	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++) {
+		unsigned int upm_handle;
+
+		upm_handle = vc4_state->upm_handle[i];
+		if (!upm_handle)
+			continue;
+
+		if (refcount_dec_and_test(&hvs->upm_refcounts[upm_handle].refcount))
+			vc4_plane_release_upm_ida(hvs, upm_handle);
+		vc4_state->upm_handle[i] = 0;
+	}
 }
 
 /*
@@ -1129,7 +1300,8 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
-	if (!width || !height || !vc4_state->crtc_w || !vc4_state->crtc_h) {
+	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
+	    !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen */
 		vc4_state->dlist_initialized = 1;
 		return 0;
@@ -1547,7 +1719,18 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		    vc4_state->y_scaling[0] == VC4_SCALING_PPF ||
 		    vc4_state->x_scaling[1] == VC4_SCALING_PPF ||
 		    vc4_state->y_scaling[1] == VC4_SCALING_PPF) {
-			u32 kernel = VC4_SET_FIELD(vc4->hvs->mitchell_netravali_filter.start,
+			struct drm_mm_node *filter;
+
+			switch (state->scaling_filter) {
+			case DRM_SCALING_FILTER_DEFAULT:
+			default:
+				filter = &vc4->hvs->mitchell_netravali_filter;
+				break;
+			case DRM_SCALING_FILTER_NEAREST_NEIGHBOR:
+				filter = &vc4->hvs->nearest_neighbour_filter;
+				break;
+			}
+			u32 kernel = VC4_SET_FIELD(filter->start,
 						   SCALER_PPF_KERNEL_OFFSET);
 
 			/* HPPF plane 0 */
@@ -1656,7 +1839,8 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
-	if (!width || !height || !vc4_state->crtc_w || !vc4_state->crtc_h) {
+	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
+	    !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen.
 		 * 0 destination size is a redundant plane.
 		 */
@@ -1958,9 +2142,19 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		    vc4_state->y_scaling[0] == VC4_SCALING_PPF ||
 		    vc4_state->x_scaling[1] == VC4_SCALING_PPF ||
 		    vc4_state->y_scaling[1] == VC4_SCALING_PPF) {
-			u32 kernel =
-				VC4_SET_FIELD(vc4->hvs->mitchell_netravali_filter.start,
-					      SCALER_PPF_KERNEL_OFFSET);
+			struct drm_mm_node *filter;
+
+			switch (state->scaling_filter) {
+			case DRM_SCALING_FILTER_DEFAULT:
+			default:
+				filter = &vc4->hvs->mitchell_netravali_filter;
+				break;
+			case DRM_SCALING_FILTER_NEAREST_NEIGHBOR:
+				filter = &vc4->hvs->nearest_neighbour_filter;
+				break;
+			}
+			u32 kernel = VC4_SET_FIELD(filter->start,
+						   SCALER_PPF_KERNEL_OFFSET);
 
 			/* HPPF plane 0 */
 			vc4_dlist_write(vc4_state, kernel);
@@ -2025,8 +2219,17 @@ int vc4_plane_atomic_check(struct drm_plane *plane,
 
 	vc4_state->dlist_count = 0;
 
-	if (!plane_enabled(new_plane_state))
+	if (!plane_enabled(new_plane_state)) {
+		struct drm_plane_state *old_plane_state =
+				drm_atomic_get_old_plane_state(state, plane);
+
+		if (old_plane_state && plane_enabled(old_plane_state)) {
+			if (vc4->gen >= VC4_GEN_6)
+				vc6_plane_free_upm(new_plane_state);
+			vc4_plane_free_lbm(new_plane_state);
+		}
 		return 0;
+	}
 
 	if (vc4->gen >= VC4_GEN_6)
 		ret = vc6_plane_mode_set(plane, new_plane_state);
@@ -2442,6 +2645,10 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
 
+	drm_plane_create_scaling_filter_property(plane,
+						 BIT(DRM_SCALING_FILTER_DEFAULT) |
+						 BIT(DRM_SCALING_FILTER_NEAREST_NEIGHBOR));
+
 	drm_plane_create_chroma_siting_properties(plane, 0, 0);
 
 	if (type == DRM_PLANE_TYPE_PRIMARY)
@@ -2451,12 +2658,27 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 }
 
 #define VC4_NUM_OVERLAY_PLANES	16
+#define VC4_NUM_TXP_OVERLAY_PLANES 32
 
 int vc4_plane_create_additional_planes(struct drm_device *drm)
 {
 	struct drm_plane *cursor_plane;
 	struct drm_crtc *crtc;
 	unsigned int i;
+	struct drm_crtc *txp_crtc;
+	uint32_t non_txp_crtc_mask;
+
+	drm_for_each_crtc(crtc, drm) {
+		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+		if (vc4_crtc->feeds_txp) {
+			txp_crtc = crtc;
+			break;
+		}
+	}
+
+	non_txp_crtc_mask = GENMASK(drm->mode_config.num_crtc - 1, 0) -
+					drm_crtc_mask(txp_crtc);
 
 	/* Set up some arbitrary number of planes.  We're not limited
 	 * by a set number of physical registers, just the space in
@@ -2470,7 +2692,22 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 	for (i = 0; i < VC4_NUM_OVERLAY_PLANES; i++) {
 		struct drm_plane *plane =
 			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY,
-				       GENMASK(drm->mode_config.num_crtc - 1, 0));
+				       non_txp_crtc_mask);
+
+		if (IS_ERR(plane))
+			continue;
+
+		/* Create zpos property. Max of all the overlays + 1 primary +
+		 * 1 cursor plane on a crtc.
+		 */
+		drm_plane_create_zpos_property(plane, i + 1, 1,
+					       VC4_NUM_OVERLAY_PLANES + 1);
+	}
+
+	for (i = 0; i < VC4_NUM_TXP_OVERLAY_PLANES; i++) {
+		struct drm_plane *plane =
+			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY,
+				       drm_crtc_mask(txp_crtc));
 
 		if (IS_ERR(plane))
 			continue;
