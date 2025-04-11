@@ -452,14 +452,6 @@ static int pcm512x_set_reg_sub(struct snd_kcontrol *kcontrol,
 
 	rtd = snd_soc_get_pcm_runtime(card, &card->dai_link[0]);
 
-	if (digital_gain_0db_limit) {
-		ret = snd_soc_limit_volume(card, "Subwoofer Playback Volume",
-					207);
-		if (ret < 0)
-			dev_warn(card->dev, "Failed to set volume limit: %d\n",
-				ret);
-	}
-
 	// When in Dual Mono, Sub vol control should not set anything.
 	if (glb_ptr->dual_mode != 1) { //Not in Dual Mono mode
 
@@ -561,14 +553,6 @@ static int pcm512x_set_reg_master(struct snd_kcontrol *kcontrol,
 	int ret = 0;
 
 	rtd = snd_soc_get_pcm_runtime(card, &card->dai_link[0]);
-
-	if (digital_gain_0db_limit) {
-		ret = snd_soc_limit_volume(card, "Master Playback Volume",
-					207);
-		if (ret < 0)
-			dev_warn(card->dev, "Failed to set volume limit: %d\n",
-				ret);
-	}
 
 	if (glb_ptr->dual_mode == 1) { //in Dual Mono Mode
 
@@ -747,21 +731,6 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 
 	mutex_init(&glb_ptr->lock);
 
-	if (digital_gain_0db_limit) {
-		int ret;
-
-		//Set volume limit on both dacs
-		for (i = 0; i < ARRAY_SIZE(codec_ctl_pfx); i++) {
-			char cname[256];
-
-			sprintf(cname, "%s %s", codec_ctl_pfx[i], codec_ctl_name[0]);
-			ret = snd_soc_limit_volume(card, cname, 207);
-			if (ret < 0)
-				dev_warn(card->dev, "Failed to set volume limit: %d\n",
-					ret);
-		}
-	}
-
 	// Remove codec controls
 	for (i = 0; i < ARRAY_SIZE(codec_ctl_pfx); i++) {
 		for (j = 0; j < ARRAY_SIZE(codec_ctl_name); j++) {
@@ -769,10 +738,7 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 
 			sprintf(cname, "%s %s", codec_ctl_pfx[i], codec_ctl_name[j]);
 			kctl = snd_soc_card_get_kcontrol(card, cname);
-			if (!kctl) {
-				dev_err(rtd->card->dev, "Control %s not found\n",
-				       cname);
-			} else {
+			if (kctl) {
 				kctl->vd[0].access =
 					SNDRV_CTL_ELEM_ACCESS_READWRITE;
 				snd_ctl_remove(card->snd_card, kctl);
@@ -978,47 +944,44 @@ static int snd_allo_piano_dac_probe(struct platform_device *pdev)
 
 		allo_piano_2_1_codecs[0].of_node =
 			of_parse_phandle(pdev->dev.of_node, "audio-codec", 0);
-		if (!allo_piano_2_1_codecs[0].of_node) {
-			dev_err(&pdev->dev,
-				"Property 'audio-codec' missing or invalid\n");
-			return -EINVAL;
-		}
-
 		allo_piano_2_1_codecs[1].of_node =
 			of_parse_phandle(pdev->dev.of_node, "audio-codec", 1);
-		if (!allo_piano_2_1_codecs[1].of_node) {
-			dev_err(&pdev->dev,
+		if (!allo_piano_2_1_codecs[0].of_node || !allo_piano_2_1_codecs[1].of_node)
+			return dev_err_probe(&pdev->dev, -EINVAL,
 				"Property 'audio-codec' missing or invalid\n");
-			return -EINVAL;
-		}
 
 		mute_gpio[0] = devm_gpiod_get_optional(&pdev->dev, "mute1",
 							GPIOD_OUT_LOW);
-		if (IS_ERR(mute_gpio[0])) {
-			ret = PTR_ERR(mute_gpio[0]);
-			dev_err(&pdev->dev,
-				"failed to get mute1 gpio6: %d\n", ret);
-			return ret;
-		}
+		if (IS_ERR(mute_gpio[0]))
+			return dev_err_probe(&pdev->dev, PTR_ERR(mute_gpio[0]),
+				"failed to get mute1 gpio\n");
 
 		mute_gpio[1] = devm_gpiod_get_optional(&pdev->dev, "mute2",
 							GPIOD_OUT_LOW);
-		if (IS_ERR(mute_gpio[1])) {
-			ret = PTR_ERR(mute_gpio[1]);
-			dev_err(&pdev->dev,
-				"failed to get mute2 gpio25: %d\n", ret);
-			return ret;
-		}
+		if (IS_ERR(mute_gpio[1]))
+			return dev_err_probe(&pdev->dev, PTR_ERR(mute_gpio[1]),
+				"failed to get mute2 gpio\n");
 
 		if (mute_gpio[0] && mute_gpio[1])
 			snd_allo_piano_dac.set_bias_level =
 				snd_allo_piano_set_bias_level;
 
 		ret = snd_soc_register_card(&snd_allo_piano_dac);
-		if (ret < 0) {
-			dev_err(&pdev->dev,
-				"snd_soc_register_card() failed: %d\n", ret);
-			return ret;
+		if (ret < 0)
+			return dev_err_probe(&pdev->dev, ret, "snd_soc_register_card() failed\n");
+
+		if (digital_gain_0db_limit) {
+			ret = snd_soc_limit_volume(card, "Master Playback Volume",
+						207);
+			if (ret < 0)
+				dev_warn(card->dev, "Failed to set master volume limit: %d\n",
+					ret);
+
+			ret = snd_soc_limit_volume(card, "Subwoofer Playback Volume",
+						207);
+			if (ret < 0)
+				dev_warn(card->dev, "Failed to set subwoofer volume limit: %d\n",
+					ret);
 		}
 
 		if ((mute_gpio[0]) && (mute_gpio[1]))

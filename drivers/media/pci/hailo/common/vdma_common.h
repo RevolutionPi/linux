@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #ifndef _HAILO_COMMON_VDMA_COMMON_H_
@@ -16,6 +16,15 @@
 #define VDMA_DESCRIPTOR_LIST_ALIGN  (1 << 16)
 #define INVALID_VDMA_ADDRESS        (0)
 
+#define CHANNEL_BASE_OFFSET(channel_index) ((channel_index) << 5)
+
+#define CHANNEL_CONTROL_OFFSET      (0x0)
+#define CHANNEL_DEPTH_ID_OFFSET     (0x1)
+#define CHANNEL_NUM_AVAIL_OFFSET    (0x2)
+#define CHANNEL_NUM_PROC_OFFSET     (0x4)
+#define CHANNEL_ERROR_OFFSET        (0x8)
+#define CHANNEL_DEST_REGS_OFFSET    (0x10)
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -30,8 +39,14 @@ struct hailo_vdma_descriptor {
 
 struct hailo_vdma_descriptors_list {
     struct hailo_vdma_descriptor *desc_list;
-    u32                      desc_count;  // Must be power of 2 if is_circular is set.
-    u16                      desc_page_size;
+    // Must be power of 2 if is_circular is set.
+    u32                           desc_count;
+    // The nearest power of 2 to desc_count (including desc_count), minus 1.
+    // * If the list is circular, then 'index & desc_count_mask' can be used instead of modulo.
+    // * Otherwise, we can't wrap around the list anyway. However, for any index < desc_count, 'index & desc_count_mask'
+    //   will return the same value.
+    u32                           desc_count_mask;
+    u16                           desc_page_size;
     bool                          is_circular;
 };
 
@@ -113,9 +128,10 @@ struct hailo_vdma_engine {
 };
 
 struct hailo_vdma_hw_ops {
-    // Accepts some dma_addr_t mapped to the device and encodes it using
-    // hw specific encode. returns INVALID_VDMA_ADDRESS on failure.
-    u64 (*encode_desc_dma_address)(dma_addr_t dma_address, u8 channel_id);
+    // Accepts start, end and step of an address range (of type  dma_addr_t).
+    // Returns the encoded base address or INVALID_VDMA_ADDRESS if the range/step is invalid.
+    // All addresses in the range of [returned_addr, returned_addr + step, returned_addr + 2*step, ..., dma_address_end) are valid.
+    u64 (*encode_desc_dma_address_range)(dma_addr_t dma_address_start, dma_addr_t dma_address_end, u32 step, u8 channel_id);
 };
 
 struct hailo_vdma_hw {
@@ -127,17 +143,17 @@ struct hailo_vdma_hw {
     // Bitmask needed to set on each descriptor to enable interrupts (either host/device).
     unsigned long host_interrupts_bitmask;
     unsigned long device_interrupts_bitmask;
+
+    // Bitmask for each vdma hw, which channels are src side by index (on pcie/dram - 0x0000FFFF, pci ep - 0xFFFF0000)
+    u32 src_channels_bitmask;
 };
 
 #define _for_each_element_array(array, size, element, index) \
     for (index = 0, element = &array[index]; index < size; index++, element = &array[index])
 
 #define for_each_vdma_channel(engine, channel, channel_index) \
-    _for_each_element_array(engine->channels, MAX_VDMA_CHANNELS_PER_ENGINE,   \
+    _for_each_element_array((engine)->channels, MAX_VDMA_CHANNELS_PER_ENGINE,   \
         channel, channel_index)
-
-void hailo_vdma_program_descriptor(struct hailo_vdma_descriptor *descriptor, u64 dma_address, size_t page_size,
-    u8 data_id);
 
 /**
  * Program the given descriptors list to map the given buffer.
@@ -147,7 +163,11 @@ void hailo_vdma_program_descriptor(struct hailo_vdma_descriptor *descriptor, u64
  * @param starting_desc index of the first descriptor to program. If the list
  *                      is circular, this function may wrap around the list.
  * @param buffer buffer to program to the descriptors list.
+ * @param should_bind If false, assumes the buffer was already bound to the
+ *                    desc list. Used for optimization.
  * @param channel_index channel index of the channel attached.
+ * @param last_desc_interrupts - interrupts settings on last descriptor.
+ * @param is_debug program descriptors for debug run.
  *
  * @return On success - the amount of descriptors programmed, negative value on error.
  */
@@ -156,7 +176,24 @@ int hailo_vdma_program_descriptors_list(
     struct hailo_vdma_descriptors_list *desc_list,
     u32 starting_desc,
     struct hailo_vdma_mapped_transfer_buffer *buffer,
-    u8 channel_index);
+    bool should_bind,
+    u8 channel_index,
+    enum hailo_vdma_interrupts_domain last_desc_interrupts,
+    bool is_debug);
+
+int hailo_vdma_program_descriptors_in_chunk(
+    struct hailo_vdma_hw *vdma_hw,
+    dma_addr_t chunk_addr,
+    unsigned int chunk_size,
+    struct hailo_vdma_descriptors_list *desc_list,
+    u32 desc_index,
+    u32 max_desc_index,
+    u8 channel_index,
+    u8 data_id);
+
+void hailo_vdma_set_num_avail(u8 __iomem *regs, u16 num_avail);
+
+u16 hailo_vdma_get_num_proc(u8 __iomem *regs);
 
 /**
  * Launch a transfer on some vdma channel. Includes:
@@ -191,14 +228,12 @@ int hailo_vdma_launch_transfer(
     bool is_debug);
 
 void hailo_vdma_engine_init(struct hailo_vdma_engine *engine, u8 engine_index,
-    const struct hailo_resource *channel_registers);
+    const struct hailo_resource *channel_registers, u32 src_channels_bitmask);
 
-// enable/disable channels interrupt (does not update interrupts mask because the
-// implementation is different between PCIe and DRAM DMA. To support it we
-// can add some ops struct to the engine).
-void hailo_vdma_engine_enable_channel_interrupts(struct hailo_vdma_engine *engine, u32 bitmap,
+void hailo_vdma_engine_enable_channels(struct hailo_vdma_engine *engine, u32 bitmap,
     bool measure_timestamp);
-void hailo_vdma_engine_disable_channel_interrupts(struct hailo_vdma_engine *engine, u32 bitmap);
+
+void hailo_vdma_engine_disable_channels(struct hailo_vdma_engine *engine, u32 bitmap);
 
 void hailo_vdma_engine_push_timestamps(struct hailo_vdma_engine *engine, u32 bitmap);
 int hailo_vdma_engine_read_timestamps(struct hailo_vdma_engine *engine,
@@ -236,6 +271,12 @@ typedef void(*transfer_done_cb_t)(struct hailo_ongoing_transfer *transfer, void 
 int hailo_vdma_engine_fill_irq_data(struct hailo_vdma_interrupts_wait_params *irq_data,
     struct hailo_vdma_engine *engine, u32 irq_channels_bitmap,
     transfer_done_cb_t transfer_done, void *transfer_done_opaque);
+
+int hailo_vdma_start_channel(u8 __iomem *regs, uint64_t desc_dma_address, uint32_t desc_count, uint8_t data_id);
+
+void hailo_vdma_stop_channel(u8 __iomem *regs);
+
+bool hailo_check_channel_index(u8 channel_index, u32 src_channels_bitmask, bool is_input_channel);
 
 #ifdef __cplusplus
 }

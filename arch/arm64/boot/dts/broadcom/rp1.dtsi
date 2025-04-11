@@ -13,6 +13,14 @@
 
 		// ranges and dma-ranges must be provided by the includer
 
+		rp1_mbox: mailbox@8000 {
+			compatible = "raspberrypi,rp1-mbox";
+			status = "disabled";
+			reg = <0xc0 0x40008000  0x0 0x4000>;  // SYSCFG
+			interrupts = <RP1_INT_SYSCFG IRQ_TYPE_LEVEL_HIGH>;
+			#mbox-cells = <1>;
+		};
+
 		rp1_clocks: clocks@18000 {
 			compatible = "raspberrypi,rp1-clocks";
 			#clock-cells = <1>;
@@ -24,6 +32,7 @@
 					  // RP1_PLL_VIDEO_CORE and dividers are now managed by VEC,DPI drivers
 					  <&rp1_clocks RP1_PLL_SYS>,
 					  <&rp1_clocks RP1_PLL_SYS_SEC>,
+					  <&rp1_clocks RP1_CLK_ETH>,
 					  <&rp1_clocks RP1_PLL_AUDIO>,
 					  <&rp1_clocks RP1_PLL_AUDIO_SEC>,
 					  <&rp1_clocks RP1_CLK_SYS>,
@@ -38,6 +47,7 @@
 					       <1536000000>, // RP1_PLL_AUDIO_CORE
 					       <200000000>,  // RP1_PLL_SYS
 					       <125000000>,  // RP1_PLL_SYS_SEC
+					       <125000000>,  // RP1_CLK_ETH
 					       <61440000>,   // RP1_PLL_AUDIO
 					       <192000000>,  // RP1_PLL_AUDIO_SEC
 					       <200000000>,  // RP1_CLK_SYS
@@ -55,11 +65,11 @@
 			interrupts = <RP1_INT_UART0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
 			clock-names = "uartclk", "apb_pclk";
-			dmas = <&rp1_dma RP1_DMA_UART0_TX>,
-			       <&rp1_dma RP1_DMA_UART0_RX>;
-			dma-names = "tx", "rx";
+			// dmas = <&rp1_dma RP1_DMA_UART0_TX>,
+			//        <&rp1_dma RP1_DMA_UART0_RX>;
+			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -76,7 +86,7 @@
 			//        <&rp1_dma RP1_DMA_UART1_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -93,7 +103,7 @@
 			//        <&rp1_dma RP1_DMA_UART2_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -110,7 +120,7 @@
 			//        <&rp1_dma RP1_DMA_UART3_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -127,7 +137,7 @@
 			//        <&rp1_dma RP1_DMA_UART4_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -144,7 +154,7 @@
 			//        <&rp1_dma RP1_DMA_UART5_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -968,12 +978,15 @@
 
 		rp1_eth: ethernet@100000 {
 			reg = <0xc0 0x40100000  0x0 0x4000>;
-			compatible = "cdns,macb";
+			compatible = "raspberrypi,rp1-gem", "cdns,macb";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			interrupts = <RP1_INT_ETH IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&macb_pclk &macb_hclk &rp1_clocks RP1_CLK_ETH_TSU>;
-			clock-names = "pclk", "hclk", "tsu_clk";
+			clocks = <&rp1_clocks RP1_CLK_SYS
+				  &rp1_clocks RP1_CLK_SYS
+				  &rp1_clocks RP1_CLK_ETH_TSU
+				  &rp1_clocks RP1_CLK_ETH>;
+			clock-names = "pclk", "hclk", "tsu_clk", "tx_clk";
 			phy-mode = "rgmii-id";
 			cdns,aw2w-max-pipe = /bits/ 8 <8>;
 			cdns,ar2r-max-pipe = /bits/ 8 <8>;
@@ -1020,6 +1033,18 @@
 			status = "disabled";
 		};
 
+		rp1_pio: pio@178000 {
+			reg = <0xc0 0x40178000  0x0 0x20>;
+			compatible = "raspberrypi,rp1-pio";
+			firmware = <&rp1_firmware>;
+			dmas = <&rp1_dma RP1_DMA_PIO_CH0_TX>, <&rp1_dma RP1_DMA_PIO_CH0_RX>,
+				   <&rp1_dma RP1_DMA_PIO_CH1_TX>, <&rp1_dma RP1_DMA_PIO_CH1_RX>,
+				   <&rp1_dma RP1_DMA_PIO_CH2_TX>, <&rp1_dma RP1_DMA_PIO_CH2_RX>,
+				   <&rp1_dma RP1_DMA_PIO_CH3_TX>, <&rp1_dma RP1_DMA_PIO_CH3_RX>;
+			dma-names = "tx0", "rx0", "tx1", "rx1", "tx2", "rx2", "tx3", "rx3";
+			status = "disabled";
+		};
+
 		rp1_mmc0: mmc@180000 {
 			reg = <0xc0 0x40180000  0x0 0x100>;
 			compatible = "raspberrypi,rp1-dwcmshc";
@@ -1056,7 +1081,7 @@
 			reg = <0xc0 0x40188000  0x0 0x1000>;
 			compatible = "snps,axi-dma-1.01a";
 			interrupts = <RP1_INT_DMA IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&sdhci_core &rp1_clocks RP1_CLK_SYS>;
+			clocks = <&rp1_clocks RP1_CLK_DMA &rp1_clocks RP1_CLK_SYS>;
 			clock-names = "core-clk", "cfgr-clk";
 
 			#dma-cells = <1>;
@@ -1077,6 +1102,7 @@
 			usb3-lpm-capable;
 			snps,axi-pipe-limit = /bits/ 8 <8>;
 			snps,dis_rxdet_inp3_quirk;
+			snps,enhanced-nak-fs-quirk;
 			snps,parkmode-disable-ss-quirk;
 			snps,parkmode-disable-hs-quirk;
 			snps,parkmode-disable-fsls-quirk;
@@ -1093,6 +1119,7 @@
 			usb3-lpm-capable;
 			snps,axi-pipe-limit = /bits/ 8 <8>;
 			snps,dis_rxdet_inp3_quirk;
+			snps,enhanced-nak-fs-quirk;
 			snps,parkmode-disable-ss-quirk;
 			snps,parkmode-disable-hs-quirk;
 			snps,parkmode-disable-fsls-quirk;
@@ -1181,6 +1208,19 @@
 			assigned-clocks        = <&rp1_clocks RP1_CLK_DPI>;
 			assigned-clock-parents = <&rp1_clocks RP1_PLL_VIDEO>;
 		};
+
+		sram: sram@400000 {
+			compatible = "mmio-sram";
+			reg = <0xc0 0x40400000  0x0 0x10000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0  0xc0 0x40400000  0x10000>;
+
+			rp1_fw_shmem: shmem@ff00 {
+				compatible = "raspberrypi,rp1-shmem";
+				reg = <0xff00 0x100>; // firmware mailbox buffer
+			};
+		};
 	};
 };
 
@@ -1190,18 +1230,6 @@
 		#clock-cells = <0>;
 		clock-output-names = "xosc";
 		clock-frequency = <50000000>;
-	};
-	macb_pclk: macb_pclk {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-output-names = "pclk";
-		clock-frequency = <200000000>;
-	};
-	macb_hclk: macb_hclk {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-output-names = "hclk";
-		clock-frequency = <200000000>;
 	};
 	sdio_src: sdio_src {
 		// 400 MHz on FPGA. PLL sys VCO on asic
@@ -1279,6 +1307,12 @@
 };
 
 / {
+	rp1_firmware: rp1_firmware {
+		compatible = "raspberrypi,rp1-firmware", "simple-mfd";
+		mboxes = <&rp1_mbox 0>;
+		shmem = <&rp1_fw_shmem>;
+	};
+
 	rp1_vdd_3v3: rp1_vdd_3v3 {
 		compatible = "regulator-fixed";
 		regulator-name = "vdd-3v3";

@@ -229,6 +229,8 @@ static const struct drm_mode_config_funcs rp1dsi_mode_funcs = {
 static const u32 rp1dsi_formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565
@@ -394,7 +396,10 @@ ssize_t rp1dsi_host_transfer(struct mipi_dsi_host *host, const struct mipi_dsi_m
 		return ret;
 	}
 
-	rp1dsi_dsi_send(dsi, *(u32 *)(&packet.header), packet.payload_length, packet.payload);
+	rp1dsi_dsi_send(dsi, *(u32 *)(&packet.header),
+			packet.payload_length, packet.payload,
+			!!(msg->flags & MIPI_DSI_MSG_USE_LPM),
+			!!(msg->flags & MIPI_DSI_MSG_REQ_ACK));
 
 	/* Optional read back */
 	if (msg->rx_len && msg->rx_buf)

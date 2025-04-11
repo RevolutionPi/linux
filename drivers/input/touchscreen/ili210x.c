@@ -67,6 +67,8 @@ struct ili210x {
 	u8 version_proto[2];
 	u8 ic_mode[2];
 	bool stop;
+	struct timer_list poll_timer;
+	struct work_struct poll_work;
 };
 
 static int ili210x_read_reg(struct i2c_client *client,
@@ -360,6 +362,34 @@ static irqreturn_t ili210x_irq(int irq, void *irq_data)
 	return IRQ_HANDLED;
 }
 
+static void ili210x_poll_work(struct work_struct *work)
+{
+	struct ili210x *priv = container_of(work, struct ili210x, poll_work);
+	struct i2c_client *client = priv->client;
+	const struct ili2xxx_chip *chip = priv->chip;
+	u8 touchdata[ILI210X_DATA_SIZE] = { 0 };
+	bool touch;
+	int error;
+
+	error = chip->get_touch_data(client, touchdata);
+	if (error) {
+		dev_err(&client->dev, "Unable to get touch data: %d\n", error);
+		return;
+	}
+
+	touch = ili210x_report_events(priv, touchdata);
+}
+
+static void ili210x_poll_timer_callback(struct timer_list *t)
+{
+	struct ili210x *priv = from_timer(priv, t, poll_timer);
+
+	schedule_work(&priv->poll_work);
+
+	if (!priv->stop)
+		mod_timer(&priv->poll_timer, jiffies + msecs_to_jiffies(ILI2XXX_POLL_PERIOD));
+}
+
 static int ili251x_firmware_update_resolution(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -597,7 +627,7 @@ static int ili251x_firmware_to_buffer(const struct firmware *fw,
 	 * once, copy them all into this buffer at the right locations, and then
 	 * do all operations on this linear buffer.
 	 */
-	fw_buf = kzalloc(SZ_64K, GFP_KERNEL);
+	fw_buf = kvmalloc(SZ_64K, GFP_KERNEL);
 	if (!fw_buf)
 		return -ENOMEM;
 
@@ -627,7 +657,7 @@ static int ili251x_firmware_to_buffer(const struct firmware *fw,
 	return 0;
 
 err_big:
-	kfree(fw_buf);
+	kvfree(fw_buf);
 	return error;
 }
 
@@ -870,7 +900,7 @@ exit:
 	ili210x_hardware_reset(priv->reset_gpio);
 	dev_dbg(dev, "Firmware update ended, error=%i\n", error);
 	enable_irq(client->irq);
-	kfree(fwbuf);
+	kvfree(fwbuf);
 	return error;
 }
 
@@ -945,11 +975,6 @@ static int ili210x_i2c_probe(struct i2c_client *client)
 		return -ENODEV;
 	}
 
-	if (client->irq <= 0) {
-		dev_err(dev, "No IRQ!\n");
-		return -EINVAL;
-	}
-
 	reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(reset_gpio))
 		return PTR_ERR(reset_gpio);
@@ -1001,12 +1026,17 @@ static int ili210x_i2c_probe(struct i2c_client *client)
 		return error;
 	}
 
-	error = devm_request_threaded_irq(dev, client->irq, NULL, ili210x_irq,
-					  IRQF_ONESHOT, client->name, priv);
-	if (error) {
-		dev_err(dev, "Unable to request touchscreen IRQ, err: %d\n",
-			error);
-		return error;
+	if (client->irq) {
+		error = devm_request_threaded_irq(dev, client->irq, NULL, ili210x_irq,
+					IRQF_ONESHOT, client->name, priv);
+		if (error) {
+			dev_err(dev, "Unable to request touchscreen IRQ, err: %d\n", error);
+			return error;
+		}
+	} else {
+		timer_setup(&priv->poll_timer, ili210x_poll_timer_callback, 0);
+		mod_timer(&priv->poll_timer, jiffies + msecs_to_jiffies(ILI2XXX_POLL_PERIOD));
+		INIT_WORK(&priv->poll_work, ili210x_poll_work);
 	}
 
 	error = devm_add_action_or_reset(dev, ili210x_stop, priv);
@@ -1027,6 +1057,16 @@ static int ili210x_i2c_probe(struct i2c_client *client)
 	}
 
 	return 0;
+}
+
+static void ili210x_i2c_remove(struct i2c_client *client)
+{
+	struct ili210x *tsdata = i2c_get_clientdata(client);
+
+	if (!client->irq) {
+		del_timer(&tsdata->poll_timer);
+		cancel_work_sync(&tsdata->poll_work);
+	}
 }
 
 static const struct i2c_device_id ili210x_i2c_id[] = {
@@ -1054,6 +1094,7 @@ static struct i2c_driver ili210x_ts_driver = {
 	},
 	.id_table = ili210x_i2c_id,
 	.probe = ili210x_i2c_probe,
+	.remove   = ili210x_i2c_remove,
 };
 
 module_i2c_driver(ili210x_ts_driver);

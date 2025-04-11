@@ -48,6 +48,10 @@
 		bcm2712;
 	};
 
+	hifiberry-adc8x {
+		bcm2712;
+	};
+
 	hifiberry-dac8x {
 		bcm2712;
 	};
@@ -116,6 +120,16 @@
 	i2s-gpio28-31 {
 		bcm2835;
 		bcm2711;
+	};
+
+	imx500 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "imx500-pi5";
+	};
+
+	imx500-pi5 {
+		bcm2712;
 	};
 
 	lirc-rpi {
@@ -226,6 +240,10 @@
 		bcm2712;
 	};
 
+	pwm-pio {
+		bcm2712;
+	};
+
 	pwm1 {
 		bcm2711;
 	};
@@ -233,10 +251,12 @@
 	ramoops {
 		bcm2835;
 		bcm2711 = "ramoops-pi4";
+		bcm2712 = "ramoops-pi4";
 	};
 
 	ramoops-pi4 {
 		bcm2711;
+		bcm2712;
 	};
 
 	revpi-hat-eeprom {

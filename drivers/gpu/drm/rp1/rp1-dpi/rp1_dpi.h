@@ -25,6 +25,13 @@
 #define RP1DPI_CLK_PLLCORE  2
 #define RP1DPI_NUM_CLOCKS   3
 
+/* Codes (in LE byte order) used for S/W permutation */
+#define RP1DPI_ORDER_UNCHANGED 0
+#define RP1DPI_ORDER_RGB       0x020100
+#define RP1DPI_ORDER_BGR       0x000102
+#define RP1DPI_ORDER_GRB       0x020001
+#define RP1DPI_ORDER_BRG       0x010002
+
 /* ---------------------------------------------------------------------- */
 
 struct rp1_dpi {
@@ -45,7 +52,20 @@ struct rp1_dpi {
 	u32 bus_fmt;
 	bool de_inv, clk_inv;
 	bool dpi_running, pipe_enabled;
+	unsigned int rgb_order_override;
 	struct completion finished;
+
+	/* Experimental stuff for interlace follows */
+	struct rp1_pio_client *pio;
+	bool gpio1_used;
+	bool pio_stole_gpio2;
+
+	spinlock_t hw_lock; /* the following are used in line-match ISR */
+	dma_addr_t last_dma_addr;
+	u32 last_stride;
+	u32 shorter_front_porch;
+	bool interlaced;
+	bool lower_field_flag;
 };
 
 /* ---------------------------------------------------------------------- */
@@ -67,3 +87,9 @@ void rp1dpi_hw_vblank_ctrl(struct rp1_dpi *dpi, int enable);
 
 void rp1dpi_vidout_setup(struct rp1_dpi *dpi, bool drive_negedge);
 void rp1dpi_vidout_poweroff(struct rp1_dpi *dpi);
+
+/* ---------------------------------------------------------------------- */
+/* PIO control -- we need PIO to generate VSync (from DE) when interlaced */
+
+int rp1dpi_pio_start(struct rp1_dpi *dpi, const struct drm_display_mode *mode);
+void rp1dpi_pio_stop(struct rp1_dpi *dpi);

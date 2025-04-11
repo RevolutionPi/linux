@@ -1,15 +1,16 @@
 /dts-v1/;
 /plugin/;
 
+#include "i2c-buses.dtsi"
+
 / {
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_arm>;
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
 
 			sc16is752: sc16is752@48 {
 				compatible = "nxp,sc16is752";
@@ -27,7 +28,7 @@
 	};
 
 	fragment@1 {
-		target-path = "/";
+		target = <&clocks>;
 		__overlay__ {
 			sc16is752_clk: sc16is752_i2c_clk@48 {
 				compatible = "fixed-clock";

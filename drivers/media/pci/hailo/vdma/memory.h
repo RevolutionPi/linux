@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 /**
  * vDMA memory utility (including allocation and mappings)
@@ -11,8 +11,10 @@
 
 #include "vdma/vdma.h"
 
-struct hailo_vdma_buffer *hailo_vdma_buffer_map(struct device *dev,
-    void __user *user_address, size_t size, enum dma_data_direction direction,
+#define SGL_MAX_SEGMENT_SIZE 	(0x10000)
+
+struct hailo_vdma_buffer *hailo_vdma_buffer_map(struct device *dev, uintptr_t user_address, size_t size,
+    enum dma_data_direction direction, enum hailo_dma_buffer_type buffer_type,
     struct hailo_vdma_low_memory_buffer *low_mem_driver_allocated_buffer);
 void hailo_vdma_buffer_get(struct hailo_vdma_buffer *buf);
 void hailo_vdma_buffer_put(struct hailo_vdma_buffer *buf);

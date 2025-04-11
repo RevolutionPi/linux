@@ -80,6 +80,7 @@ static void rp1dpi_pipe_update(struct drm_simple_display_pipe *pipe,
 			if (dpi->dpi_running &&
 			    fb->format->format != dpi->cur_fmt) {
 				rp1dpi_hw_stop(dpi);
+				rp1dpi_pio_stop(dpi);
 				dpi->dpi_running = false;
 			}
 			if (!dpi->dpi_running) {
@@ -88,6 +89,7 @@ static void rp1dpi_pipe_update(struct drm_simple_display_pipe *pipe,
 						dpi->bus_fmt,
 						dpi->de_inv,
 						&pipe->crtc.state->mode);
+				rp1dpi_pio_start(dpi, &pipe->crtc.state->mode);
 				dpi->dpi_running = true;
 			}
 			dpi->cur_fmt = fb->format->format;
@@ -187,6 +189,7 @@ static void rp1dpi_pipe_disable(struct drm_simple_display_pipe *pipe)
 	drm_crtc_vblank_off(&pipe->crtc);
 	if (dpi->dpi_running) {
 		rp1dpi_hw_stop(dpi);
+		rp1dpi_pio_stop(dpi);
 		dpi->dpi_running = false;
 	}
 	clk_disable_unprepare(dpi->clocks[RP1DPI_CLK_DPI]);
@@ -214,12 +217,28 @@ static void rp1dpi_pipe_disable_vblank(struct drm_simple_display_pipe *pipe)
 		rp1dpi_hw_vblank_ctrl(dpi, 0);
 }
 
+static enum drm_mode_status rp1dpi_pipe_mode_valid(struct drm_simple_display_pipe *pipe,
+						   const struct drm_display_mode *mode)
+{
+#if !IS_REACHABLE(CONFIG_RP1_PIO)
+	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
+		return MODE_NO_INTERLACE;
+#endif
+	if (mode->clock < 1000) /* 1 MHz */
+		return MODE_CLOCK_LOW;
+	if (mode->clock > 200000) /* 200 MHz */
+		return MODE_CLOCK_HIGH;
+
+	return MODE_OK;
+}
+
 static const struct drm_simple_display_pipe_funcs rp1dpi_pipe_funcs = {
 	.enable	    = rp1dpi_pipe_enable,
 	.update	    = rp1dpi_pipe_update,
 	.disable    = rp1dpi_pipe_disable,
 	.enable_vblank	= rp1dpi_pipe_enable_vblank,
 	.disable_vblank = rp1dpi_pipe_disable_vblank,
+	.mode_valid = rp1dpi_pipe_mode_valid,
 };
 
 static const struct drm_mode_config_funcs rp1dpi_mode_funcs = {
@@ -236,6 +255,7 @@ static void rp1dpi_stopall(struct drm_device *drm)
 		if (dpi->dpi_running || rp1dpi_hw_busy(dpi)) {
 			rp1dpi_hw_stop(dpi);
 			clk_disable_unprepare(dpi->clocks[RP1DPI_CLK_DPI]);
+			rp1dpi_pio_stop(dpi);
 			dpi->dpi_running = false;
 		}
 		rp1dpi_vidout_poweroff(dpi);
@@ -260,6 +280,8 @@ static struct drm_driver rp1dpi_driver = {
 static const u32 rp1dpi_formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565
@@ -270,8 +292,9 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct rp1_dpi *dpi;
 	struct drm_bridge *bridge = NULL;
+	const char *rgb_order = NULL;
 	struct drm_panel *panel;
-	int i, ret;
+	int i, j, ret;
 
 	dev_info(dev, __func__);
 	ret = drm_of_find_panel_or_bridge(pdev->dev.of_node, 0, 0,
@@ -293,6 +316,7 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 		return ret;
 	}
 	dpi->pdev = pdev;
+	spin_lock_init(&dpi->hw_lock);
 
 	dpi->bus_fmt = default_bus_fmt;
 	ret = of_property_read_u32(dev->of_node, "default_bus_fmt", &dpi->bus_fmt);
@@ -329,6 +353,47 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	ret = drmm_mode_config_init(&dpi->drm);
 	if (ret)
 		goto done_err;
+
+	dpi->rgb_order_override = RP1DPI_ORDER_UNCHANGED;
+	if (!of_property_read_string(dev->of_node, "rgb_order", &rgb_order)) {
+		if (!strcmp(rgb_order, "rgb"))
+			dpi->rgb_order_override = RP1DPI_ORDER_RGB;
+		else if (!strcmp(rgb_order, "bgr"))
+			dpi->rgb_order_override = RP1DPI_ORDER_BGR;
+		else if (!strcmp(rgb_order, "grb"))
+			dpi->rgb_order_override = RP1DPI_ORDER_GRB;
+		else if (!strcmp(rgb_order, "brg"))
+			dpi->rgb_order_override = RP1DPI_ORDER_BRG;
+		else
+			DRM_ERROR("Invalid dpi order %s - ignored\n", rgb_order);
+	}
+
+	/* Check if PIO can snoop on or override DPI's GPIO1 */
+	dpi->gpio1_used = false;
+	for (i = 0; !dpi->gpio1_used; i++) {
+		u32 p = 0;
+		const char *str = NULL;
+		struct device_node *np1 = of_parse_phandle(dev->of_node, "pinctrl-0", i);
+
+		if (!np1)
+			break;
+
+		if (!of_property_read_string(np1, "function", &str) && !strcmp(str, "dpi")) {
+			for (j = 0; !dpi->gpio1_used; j++) {
+				if (of_property_read_string_index(np1, "pins", j, &str))
+					break;
+				if (!strcmp(str, "gpio1"))
+					dpi->gpio1_used = true;
+			}
+			for (j = 0; !dpi->gpio1_used; j++) {
+				if (of_property_read_u32_index(np1, "brcm,pins", j, &p))
+					break;
+				if (p == 1)
+					dpi->gpio1_used = true;
+			}
+		}
+		of_node_put(np1);
+	}
 
 	/* Now we have all our resources, finish driver initialization */
 	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));

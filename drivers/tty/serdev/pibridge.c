@@ -6,6 +6,7 @@
 #include <linux/serdev.h>
 #include <linux/pibridge_comm.h>
 #include <linux/wait.h>
+#include <linux/kstrtox.h>
 
 #include "pibridge.h"
 
@@ -33,6 +34,7 @@ struct pibridge_stats {
 	u64 rx_gate_crc_inval;
 	u64 rx_gate_format_inval;
 	u64 rx_gate_discarded;
+	u64 rx_gate_remote_err;
 	u64 rx_io_hdr_err;
 	u64 rx_io_data_err;
 	u64 rx_io_crc_err;
@@ -72,81 +74,132 @@ do {									\
 
 #define PIBRIDGE_INC_STATS(counter) PIBRIDGE_ADD_STATS(counter, 1)
 
-#define pibridge_descriptor_attr(field, format_string)			\
-static ssize_t field##_show(struct device_driver *drv, char *buf)	\
+#define pibridge_stats_attr(field, format_string)			\
+static ssize_t stat_##field##_show(struct device_driver *drv, char *buf)	\
 {									\
 	u64 counter;							\
 	PIBRIDGE_GET_STATS(counter, field);				\
 	return sysfs_emit(buf, "%llu\n", counter);			\
 }
 
-pibridge_descriptor_attr(tx_bytes, "%u\n");
-pibridge_descriptor_attr(tx_err, "%u\n");
-pibridge_descriptor_attr(tx_io_err, "%u\n");
-pibridge_descriptor_attr(tx_gate_err, "%u\n");
-pibridge_descriptor_attr(rx_bytes, "%u\n");
-pibridge_descriptor_attr(rx_err, "%u\n");
-pibridge_descriptor_attr(rx_gate_hdr_err, "%u\n");
-pibridge_descriptor_attr(rx_gate_data_err, "%u\n");
-pibridge_descriptor_attr(rx_gate_crc_err, "%u\n");
-pibridge_descriptor_attr(rx_gate_crc_inval, "%u\n");
-pibridge_descriptor_attr(rx_gate_format_inval, "%u\n");
-pibridge_descriptor_attr(rx_gate_discarded, "%u\n");
-pibridge_descriptor_attr(rx_io_hdr_err, "%u\n");
-pibridge_descriptor_attr(rx_io_data_err, "%u\n");
-pibridge_descriptor_attr(rx_io_crc_err, "%u\n");
-pibridge_descriptor_attr(rx_io_crc_inval, "%u\n");
-pibridge_descriptor_attr(rx_io_format_inval, "%u\n");
-pibridge_descriptor_attr(rx_io_discarded, "%u\n");
+pibridge_stats_attr(tx_bytes, "%u\n");
+pibridge_stats_attr(tx_err, "%u\n");
+pibridge_stats_attr(tx_io_err, "%u\n");
+pibridge_stats_attr(tx_gate_err, "%u\n");
+pibridge_stats_attr(rx_bytes, "%u\n");
+pibridge_stats_attr(rx_err, "%u\n");
+pibridge_stats_attr(rx_gate_hdr_err, "%u\n");
+pibridge_stats_attr(rx_gate_data_err, "%u\n");
+pibridge_stats_attr(rx_gate_crc_err, "%u\n");
+pibridge_stats_attr(rx_gate_crc_inval, "%u\n");
+pibridge_stats_attr(rx_gate_format_inval, "%u\n");
+pibridge_stats_attr(rx_gate_discarded, "%u\n");
+pibridge_stats_attr(rx_gate_remote_err, "%u\n");
+pibridge_stats_attr(rx_io_hdr_err, "%u\n");
+pibridge_stats_attr(rx_io_data_err, "%u\n");
+pibridge_stats_attr(rx_io_crc_err, "%u\n");
+pibridge_stats_attr(rx_io_crc_inval, "%u\n");
+pibridge_stats_attr(rx_io_format_inval, "%u\n");
+pibridge_stats_attr(rx_io_discarded, "%u\n");
 
-static DRIVER_ATTR_RO(tx_bytes);
-static DRIVER_ATTR_RO(tx_err);
-static DRIVER_ATTR_RO(tx_io_err);
-static DRIVER_ATTR_RO(tx_gate_err);
-static DRIVER_ATTR_RO(rx_bytes);
-static DRIVER_ATTR_RO(rx_err);
-static DRIVER_ATTR_RO(rx_gate_hdr_err);
-static DRIVER_ATTR_RO(rx_gate_data_err);
-static DRIVER_ATTR_RO(rx_gate_crc_err);
-static DRIVER_ATTR_RO(rx_gate_crc_inval);
-static DRIVER_ATTR_RO(rx_gate_format_inval);
-static DRIVER_ATTR_RO(rx_gate_discarded);
-static DRIVER_ATTR_RO(rx_io_hdr_err);
-static DRIVER_ATTR_RO(rx_io_data_err);
-static DRIVER_ATTR_RO(rx_io_crc_err);
-static DRIVER_ATTR_RO(rx_io_crc_inval);
-static DRIVER_ATTR_RO(rx_io_format_inval);
-static DRIVER_ATTR_RO(rx_io_discarded);
+static DRIVER_ATTR_RO(stat_tx_bytes);
+static DRIVER_ATTR_RO(stat_tx_err);
+static DRIVER_ATTR_RO(stat_rx_bytes);
+static DRIVER_ATTR_RO(stat_rx_err);
+static DRIVER_ATTR_RO(stat_tx_io_err);
+static DRIVER_ATTR_RO(stat_tx_gate_err);
+static DRIVER_ATTR_RO(stat_rx_gate_hdr_err);
+static DRIVER_ATTR_RO(stat_rx_gate_data_err);
+static DRIVER_ATTR_RO(stat_rx_gate_crc_err);
+static DRIVER_ATTR_RO(stat_rx_gate_crc_inval);
+static DRIVER_ATTR_RO(stat_rx_gate_format_inval);
+static DRIVER_ATTR_RO(stat_rx_gate_discarded);
+static DRIVER_ATTR_RO(stat_rx_gate_remote_err);
+static DRIVER_ATTR_RO(stat_rx_io_hdr_err);
+static DRIVER_ATTR_RO(stat_rx_io_data_err);
+static DRIVER_ATTR_RO(stat_rx_io_crc_err);
+static DRIVER_ATTR_RO(stat_rx_io_crc_inval);
+static DRIVER_ATTR_RO(stat_rx_io_format_inval);
+static DRIVER_ATTR_RO(stat_rx_io_discarded);
 
-static struct attribute *pibridge_dev_statistics_attrs[] = {
-	&driver_attr_tx_bytes.attr,
-	&driver_attr_tx_err.attr,
-	&driver_attr_tx_io_err.attr,
-	&driver_attr_tx_gate_err.attr,
-	&driver_attr_rx_bytes.attr,
-	&driver_attr_rx_err.attr,
-	&driver_attr_rx_gate_hdr_err.attr,
-	&driver_attr_rx_gate_data_err.attr,
-	&driver_attr_rx_gate_crc_err.attr,
-	&driver_attr_rx_gate_crc_inval.attr,
-	&driver_attr_rx_gate_format_inval.attr,
-	&driver_attr_rx_gate_discarded.attr,
-	&driver_attr_rx_io_hdr_err.attr,
-	&driver_attr_rx_io_data_err.attr,
-	&driver_attr_rx_io_crc_err.attr,
-	&driver_attr_rx_io_crc_inval.attr,
-	&driver_attr_rx_io_format_inval.attr,
-	&driver_attr_rx_io_discarded.attr,
+static struct attribute *pibridge_drv_stats_attrs[] = {
+	&driver_attr_stat_tx_bytes.attr,
+	&driver_attr_stat_tx_err.attr,
+	&driver_attr_stat_tx_io_err.attr,
+	&driver_attr_stat_tx_gate_err.attr,
+	&driver_attr_stat_rx_bytes.attr,
+	&driver_attr_stat_rx_err.attr,
+	&driver_attr_stat_rx_gate_hdr_err.attr,
+	&driver_attr_stat_rx_gate_data_err.attr,
+	&driver_attr_stat_rx_gate_crc_err.attr,
+	&driver_attr_stat_rx_gate_crc_inval.attr,
+	&driver_attr_stat_rx_gate_format_inval.attr,
+	&driver_attr_stat_rx_gate_discarded.attr,
+	&driver_attr_stat_rx_gate_remote_err.attr,
+	&driver_attr_stat_rx_io_hdr_err.attr,
+	&driver_attr_stat_rx_io_data_err.attr,
+	&driver_attr_stat_rx_io_crc_err.attr,
+	&driver_attr_stat_rx_io_crc_inval.attr,
+	&driver_attr_stat_rx_io_format_inval.attr,
+	&driver_attr_stat_rx_io_discarded.attr,
 	NULL,
 };
 
-static const struct attribute_group pibridge_dev_statistics_group = {
+static const struct attribute_group pibridge_drv_stats_group = {
 	.name = "stats",
-	.attrs = pibridge_dev_statistics_attrs,
+	.attrs = pibridge_drv_stats_attrs,
 };
 
-static const struct attribute_group *pibridge_dev_groups[] = {
-	&pibridge_dev_statistics_group,
+static ssize_t reset_stats_store(struct device_driver *drv, const char *buf,
+				 size_t count)
+{
+	unsigned long val;
+
+	if (kstrtoul(buf, 10, &val))
+		return -EINVAL;
+
+	if (val != 1)
+		return -EINVAL;
+
+	u64_stats_update_begin(&(pibridge_s->stats).syncp);
+	pibridge_s->stats.tx_bytes = 0;
+	pibridge_s->stats.tx_err = 0;
+	pibridge_s->stats.tx_io_err = 0;
+	pibridge_s->stats.tx_gate_err = 0;
+	pibridge_s->stats.rx_bytes = 0;
+	pibridge_s->stats.rx_err = 0;
+	pibridge_s->stats.rx_gate_hdr_err = 0;
+	pibridge_s->stats.rx_gate_data_err = 0;
+	pibridge_s->stats.rx_gate_crc_err = 0;
+	pibridge_s->stats.rx_gate_crc_inval = 0;
+	pibridge_s->stats.rx_gate_format_inval = 0;
+	pibridge_s->stats.rx_gate_discarded = 0;
+	pibridge_s->stats.rx_gate_remote_err = 0;
+	pibridge_s->stats.rx_io_hdr_err = 0;
+	pibridge_s->stats.rx_io_data_err = 0;
+	pibridge_s->stats.rx_io_crc_err = 0;
+	pibridge_s->stats.rx_io_crc_inval = 0;
+	pibridge_s->stats.rx_io_format_inval = 0;
+	pibridge_s->stats.rx_io_discarded = 0;
+	u64_stats_update_end(&(pibridge_s->stats).syncp);
+
+	return count;
+}
+
+static DRIVER_ATTR_WO(reset_stats);
+
+static struct attribute *pibridge_drv_attrs[] = {
+	&driver_attr_reset_stats.attr,
+	NULL,
+};
+
+static const struct attribute_group pibridge_drv_group = {
+	.attrs = pibridge_drv_attrs,
+};
+
+static const struct attribute_group *pibridge_drv_groups[] = {
+	&pibridge_drv_group,
+	&pibridge_drv_stats_group,
 	NULL,
 };
 
@@ -359,6 +412,7 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
 	if (!datagram) {
 		PIBRIDGE_INC_STATS(tx_gate_err);
+		PIBRIDGE_INC_STATS(tx_err);
 		return -ENOMEM;
 	}
 
@@ -379,8 +433,8 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_dbg(&serdev->dev, "failed to send gate-datagram\n");
 		PIBRIDGE_INC_STATS(tx_gate_err);
+		dev_dbg(&serdev->dev, "failed to send gate-datagram\n");
 		ret = -EIO;
 	}
 
@@ -424,6 +478,42 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 
 	trace_pibridge_receive_gate_header(&pkthdr);
 
+	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
+		dev_dbg(&serdev->dev,
+			"bad responded CMD code in gate-req(cmd: %d)\n",
+			pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
+	/* Either OK or ERR flag must be set. */
+	if ((pkthdr.cmd & (PIBRIDGE_RESP_OK | PIBRIDGE_RESP_ERR)) == 0) {
+		dev_dbg(&serdev->dev,
+			"No RESP flag set in gate-req(cmd: %d)\n", pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
+	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
+		if (pkthdr.cmd & PIBRIDGE_RESP_OK) {
+			/* Both flags must not be set. */
+			dev_dbg(&serdev->dev,
+				"ERR and OK flag set in gate-req(cmd: %d)\n",
+				pkthdr.cmd);
+			PIBRIDGE_INC_STATS(rx_gate_format_inval);
+			PIBRIDGE_INC_STATS(rx_err);
+			return -EBADMSG;
+		}
+
+		dev_dbg(&serdev->dev, "ERR flag set in gate-req(cmd: %d)\n",
+			pkthdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_remote_err);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 
 	to_receive = min(pkthdr.len, rcv_len);
@@ -454,6 +544,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
 		PIBRIDGE_ADD_STATS(rx_gate_discarded, to_discard);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
@@ -470,31 +561,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
 			crc_rcv, crc);
 		PIBRIDGE_INC_STATS(rx_gate_crc_inval);
-		return -EBADMSG;
-	}
-
-	if ((pkthdr.cmd & PIBRIDGE_RESP_CMD) != cmd) {
-		dev_dbg(&serdev->dev,
-			"bad responded CMD code in gate-req(cmd: %d)\n",
-			pkthdr.cmd);
-
-		PIBRIDGE_INC_STATS(rx_gate_format_inval);
-		return -EBADMSG;
-	}
-
-	if (!(pkthdr.cmd & PIBRIDGE_RESP_OK)) {
-		dev_dbg(&serdev->dev,
-			"bad responded OK code in gate-req(cmd: %d)\n",
-			pkthdr.cmd);
-		PIBRIDGE_INC_STATS(rx_gate_format_inval);
-		return -EBADMSG;
-	}
-
-	if (pkthdr.cmd & PIBRIDGE_RESP_ERR) {
-		dev_dbg(&serdev->dev,
-			"bad responded ERR code in gate-req(cmd: %d)\n",
-			pkthdr.cmd);
-		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
@@ -524,6 +591,7 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
 	if (!datagram) {
 		PIBRIDGE_INC_STATS(tx_io_err);
+		PIBRIDGE_INC_STATS(tx_err);
 		return -ENOMEM;
 	}
 
@@ -544,8 +612,8 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
 	if (pibridge_send(datagram, datagram_size) < 0) {
-		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
 		PIBRIDGE_INC_STATS(tx_io_err);
+		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
 		ret = -EIO;
 	}
 
@@ -583,6 +651,22 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 
 	trace_pibridge_receive_io_header(&pkthdr);
 
+	if (pkthdr.addr != addr) {
+		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
+			pkthdr.addr);
+		PIBRIDGE_INC_STATS(rx_io_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
+	if (!pkthdr.rsp) {
+		dev_dbg(&serdev->dev,
+			"response flag not set in received packet\n");
+		PIBRIDGE_INC_STATS(rx_io_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
 	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
 
 	to_receive = min((u8) pkthdr.len, rcv_len);
@@ -615,6 +699,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 			"received packet truncated (%u bytes missing)\n",
 			to_discard);
 		PIBRIDGE_ADD_STATS(rx_io_discarded, to_discard);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
@@ -631,22 +716,10 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
 			crc_rcv, crc);
 		PIBRIDGE_INC_STATS(rx_io_crc_inval);
+		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
-	if (pkthdr.addr != addr) {
-		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
-			pkthdr.addr);
-		PIBRIDGE_INC_STATS(rx_io_format_inval);
-		return -EBADMSG;
-	}
-
-	if (!pkthdr.rsp) {
-		dev_dbg(&serdev->dev,
-			"response flag not set in received packet\n");
-		PIBRIDGE_INC_STATS(rx_io_format_inval);
-		return -EBADMSG;
-	}
 
 	return to_receive;
 }
@@ -663,7 +736,7 @@ MODULE_DEVICE_TABLE(of, pibridge_of_match);
 static struct serdev_device_driver pibridge_driver = {
 	.driver	= {
 		.name		= "pi-bridge",
-		.groups = pibridge_dev_groups,
+		.groups = pibridge_drv_groups,
 		.of_match_table	= of_match_ptr(pibridge_of_match),
 	},
 	.probe	= pibridge_probe,

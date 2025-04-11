@@ -190,7 +190,7 @@
 			clocks = <&clk_uart>,
 				 <&clk_vpu>;
 			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
+			arm,primecell-periphid = <0x00341011>;
 			status = "disabled";
 		};
 
@@ -201,7 +201,7 @@
 			clocks = <&clk_uart>,
 				 <&clk_vpu>;
 			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
+			arm,primecell-periphid = <0x00341011>;
 			status = "disabled";
 		};
 
@@ -212,7 +212,7 @@
 			clocks = <&clk_uart>,
 				 <&clk_vpu>;
 			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
+			arm,primecell-periphid = <0x00341011>;
 			status = "disabled";
 		};
 
@@ -741,8 +741,6 @@
 					  IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) |
 					  IRQ_TYPE_LEVEL_LOW)>;
-		/* This only applies to the ARMv7 stub */
-		arm,cpu-registers-not-fw-configured;
 	};
 
 	cpus: cpus {
@@ -1052,12 +1050,14 @@
 			msi-controller;
 			msi-parent = <&mip1>;
 
-			ranges = <0x02000000 0x00 0x00000000
-				  0x1b 0x00000000
-				  0x00 0xfffffffc>,
+			// 2GB, 32-bit, non-prefetchable at PCIe 00_80000000
+			ranges = <0x02000000 0x00 0x80000000
+				  0x1b 0x80000000
+				  0x00 0x80000000>,
+			// 14GB, 64-bit, prefetchable at PCIe 04_00000000
 				 <0x43000000 0x04 0x00000000
 				  0x18 0x00000000
-				  0x03 0x00000000>;
+				  0x03 0x80000000>;
 
 			dma-ranges = <0x03000000 0x10 0x00000000
 				      0x00 0x00000000
@@ -1208,7 +1208,7 @@
 			clocks = <&clk_emmc2>;
 			sdhci-caps-mask = <0x0000C000 0x0>;
 			sdhci-caps = <0x0 0x0>;
-			supports-cqe;
+			supports-cqe = <1>;
 			mmc-ddr-3_3v;
 			status = "disabled";
 		};
@@ -1222,8 +1222,9 @@
 		v3d: v3d@2000000 {
 			compatible = "brcm,2712-v3d";
 			reg = <0x10 0x02000000  0x0 0x4000>,
-			      <0x10 0x02008000  0x0 0x6000>;
-			reg-names = "hub", "core0";
+			      <0x10 0x02008000  0x0 0x6000>,
+			      <0x10 0x02030800  0x0 0x0700>;
+			reg-names = "hub", "core0", "sms";
 
 			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
 			resets = <&pm BCM2835_RESET_V3D>;
@@ -1258,6 +1259,10 @@
 	};
 
 	clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 		/* The oscillator is the root of the clock tree. */
 		clk_osc: clk-osc {
 			compatible = "fixed-clock";

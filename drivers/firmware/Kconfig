@@ -139,7 +139,7 @@ config ISCSI_IBFT
 	select ISCSI_BOOT_SYSFS
 	select ISCSI_IBFT_FIND if X86
 	depends on ACPI && SCSI && SCSI_LOWLEVEL
-	default	n
+	default n
 	help
 	  This option enables support for detection and exposing of iSCSI
 	  Boot Firmware Table (iBFT) via sysfs to userspace. If you wish to
@@ -152,6 +152,15 @@ config RASPBERRYPI_FIRMWARE
 	help
 	  This option enables support for communicating with the firmware on the
 	  Raspberry Pi.
+
+config FIRMWARE_RP1
+	tristate "RP1 Firmware Driver"
+	depends on MBOX_RP1
+	help
+	  The Raspberry Pi RP1 processor presents a firmware
+	  interface using shared memory and a mailbox. To enable
+	  the driver that communicates with it, say Y. Otherwise,
+	  say N.
 
 config FW_CFG_SYSFS
 	tristate "QEMU fw_cfg device support in sysfs"
