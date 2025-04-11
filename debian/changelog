@@ -1,3 +1,10 @@
+linux-revpi-v8 (6.6.84-rt52-revpi8-1+deb12+1) bookworm; urgency=medium
+
+  [ Nicolai Buchwitz ]
+  * dts/connect5: External RS485 term is active high
+
+ -- Lino Sanfilippo <l.sanfilippo@kunbus.com>  Fri, 11 Apr 2025 12:24:21 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi7-1+deb12+1) bookworm; urgency=medium
 
   [ Nicolai Buchwitz ]

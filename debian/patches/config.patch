@@ -3,10 +3,10 @@ Author: KUNBUS GmbH <support@kunbus.com>
 
 --- /dev/null
 +++ linux/.config
-@@ -0,0 +1,9233 @@
+@@ -0,0 +1,9242 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/arm64 6.6.46 Kernel Configuration
++# Linux/arm64 6.6.84 Kernel Configuration
 +#
 +CONFIG_CC_VERSION_TEXT="gcc (Debian 12.2.0-14) 12.2.0"
 +CONFIG_CC_IS_GCC=y
@@ -516,7 +516,6 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# end of ARMv8.7 architectural features
 +
 +CONFIG_ARM64_SVE=y
-+CONFIG_ARM64_SME=y
 +# CONFIG_ARM64_PSEUDO_NMI is not set
 +CONFIG_RELOCATABLE=y
 +CONFIG_RANDOMIZE_BASE=y
@@ -874,11 +873,11 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD is not set
 +CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lzo"
 +CONFIG_ZSWAP_ZPOOL_DEFAULT_ZBUD=y
-+# CONFIG_ZSWAP_ZPOOL_DEFAULT_Z3FOLD is not set
++# CONFIG_ZSWAP_ZPOOL_DEFAULT_Z3FOLD_DEPRECATED is not set
 +# CONFIG_ZSWAP_ZPOOL_DEFAULT_ZSMALLOC is not set
 +CONFIG_ZSWAP_ZPOOL_DEFAULT="zbud"
 +CONFIG_ZBUD=y
-+CONFIG_Z3FOLD=m
++# CONFIG_Z3FOLD_DEPRECATED is not set
 +CONFIG_ZSMALLOC=m
 +# CONFIG_ZSMALLOC_STAT is not set
 +CONFIG_ZSMALLOC_CHAIN_SIZE=8
@@ -2157,6 +2156,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_ZRAM_DEF_COMP_LZO is not set
 +CONFIG_ZRAM_DEF_COMP="lzo-rle"
 +# CONFIG_ZRAM_WRITEBACK is not set
++# CONFIG_ZRAM_TRACK_ENTRY_ACTIME is not set
 +# CONFIG_ZRAM_MEMORY_TRACKING is not set
 +# CONFIG_ZRAM_MULTI_COMP is not set
 +CONFIG_BLK_DEV_LOOP=y
@@ -3355,7 +3355,6 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_JOYSTICK_QWIIC is not set
 +CONFIG_JOYSTICK_FSIA6B=m
 +# CONFIG_JOYSTICK_SENSEHAT is not set
-+CONFIG_JOYSTICK_RPISENSE=m
 +# CONFIG_INPUT_TABLET is not set
 +CONFIG_INPUT_TOUCHSCREEN=y
 +CONFIG_TOUCHSCREEN_ADS7846=m
@@ -3590,6 +3589,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_SERIAL_FSL_LINFLEXUART is not set
 +# CONFIG_SERIAL_CONEXANT_DIGICOLOR is not set
 +# CONFIG_SERIAL_SPRD is not set
++# CONFIG_SERIAL_RPI_FW is not set
 +# end of Serial drivers
 +
 +CONFIG_SERIAL_MCTRL_GPIO=y
@@ -4305,7 +4305,6 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# Multifunction device drivers
 +#
 +CONFIG_MFD_CORE=y
-+CONFIG_MFD_RPISENSE_CORE=m
 +# CONFIG_MFD_ACT8945A is not set
 +# CONFIG_MFD_AS3711 is not set
 +# CONFIG_MFD_SMPRO is not set
@@ -5026,6 +5025,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_VIDEO_IMX412 is not set
 +# CONFIG_VIDEO_IMX415 is not set
 +CONFIG_VIDEO_IMX477=m
++# CONFIG_VIDEO_IMX500 is not set
 +CONFIG_VIDEO_IMX519=m
 +CONFIG_VIDEO_IMX708=m
 +# CONFIG_VIDEO_MT9M001 is not set
@@ -5837,6 +5837,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +CONFIG_SND_SERIAL_U16550=m
 +# CONFIG_SND_SERIAL_GENERIC is not set
 +CONFIG_SND_MPU401=m
++# CONFIG_SND_PIMIDI is not set
 +CONFIG_SND_PCI=y
 +# CONFIG_SND_AD1889 is not set
 +# CONFIG_SND_ALS300 is not set
@@ -5936,6 +5937,8 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_SND_BCM63XX_I2S_WHISTLER is not set
 +CONFIG_SND_BCM2708_SOC_CHIPDIP_DAC=m
 +CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD=m
++# CONFIG_SND_BCM2708_SOC_HIFIBERRY_ADC is not set
++# CONFIG_SND_BCM2708_SOC_HIFIBERRY_ADC8X is not set
 +CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC=m
 +CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS=m
 +CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUSHD=m
@@ -6366,6 +6369,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +CONFIG_HID_ZYDACRON=m
 +# CONFIG_HID_SENSOR_HUB is not set
 +# CONFIG_HID_ALPS is not set
++# CONFIG_HID_MCP2200 is not set
 +# CONFIG_HID_MCP2221 is not set
 +# end of Special HID drivers
 +
@@ -7257,6 +7261,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_ALTERA_MBOX is not set
 +CONFIG_BCM2835_MBOX=y
 +# CONFIG_MAILBOX_TEST is not set
++# CONFIG_MBOX_RP1 is not set
 +CONFIG_IOMMU_IOVA=y
 +CONFIG_IOMMU_API=y
 +CONFIG_IOMMU_SUPPORT=y
@@ -7916,6 +7921,7 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_PWM_CLK is not set
 +# CONFIG_PWM_DWC is not set
 +# CONFIG_PWM_FSL_FTM is not set
++# CONFIG_PWM_GPIO is not set
 +CONFIG_PWM_PCA9685=m
 +CONFIG_PWM_RASPBERRYPI_POE=m
 +CONFIG_PWM_RP1=y
@@ -8422,6 +8428,9 @@ Author: KUNBUS GmbH <support@kunbus.com>
 +# CONFIG_ENCRYPTED_KEYS is not set
 +CONFIG_KEY_DH_OPERATIONS=y
 +# CONFIG_SECURITY_DMESG_RESTRICT is not set
++CONFIG_PROC_MEM_ALWAYS_FORCE=y
++# CONFIG_PROC_MEM_FORCE_PTRACE is not set
++# CONFIG_PROC_MEM_NO_FORCE is not set
 +CONFIG_SECURITY=y
 +CONFIG_SECURITYFS=y
 +CONFIG_SECURITY_NETWORK=y

@@ -1,3 +1,10 @@
+linux-revpi-v8 (6.6.84-rt52-revpi8-1+deb12+1) bookworm; urgency=medium
+
+  * Kernel updated to version 6.6.84-rt52.
+  * Fixed polarity for external RS485 termination on connect 5.
+
+ -- Lino Sanfilippo <l.sanfilippo@kunbus.com>  Fri, 11 Apr 2025 12:46:46 +0000
+
 linux-revpi-v8 (6.6.46-rt39-revpi7-1+deb12+1) bookworm; urgency=medium
 
   * The revpi-eeprom overlay now automatically selects the correct
