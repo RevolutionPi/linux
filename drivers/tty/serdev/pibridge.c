@@ -559,7 +559,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	if (crc != crc_rcv) {
 		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
-			crc_rcv, crc);
+			crc, crc_rcv);
 		PIBRIDGE_INC_STATS(rx_gate_crc_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
@@ -714,7 +714,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 	if (crc != crc_rcv) {
 		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
-			crc_rcv, crc);
+			crc, crc_rcv);
 		PIBRIDGE_INC_STATS(rx_io_crc_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
