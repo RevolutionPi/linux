@@ -21,6 +21,8 @@
 #define PIBRIDGE_RESP_OK		0x4000
 #define PIBRIDGE_RESP_ERR		0x8000
 
+static int pibridge_baudrate = PIBRIDGE_BAUDRATE;
+
 struct pibridge_stats {
 	u64 tx_bytes;
 	u64 tx_err;
@@ -245,7 +247,10 @@ static const struct serdev_device_ops pibridge_serdev_ops = {
 
 static int pibridge_set_serial(struct serdev_device *serdev)
 {
-	serdev_device_set_baudrate(serdev, PIBRIDGE_BAUDRATE);
+	if (pibridge_baudrate != PIBRIDGE_BAUDRATE)
+		dev_warn(&serdev->dev, "Using non-standard baudrate: %d (default: %d)\n",
+		         pibridge_baudrate, PIBRIDGE_BAUDRATE);
+	serdev_device_set_baudrate(serdev, pibridge_baudrate);
 	/* RTS is used to drive Transmit Enable pin, hence no flow control */
 	serdev_device_set_flow_control(serdev, false);
 	return serdev_device_set_parity(serdev, SERDEV_PARITY_EVEN);
@@ -743,5 +748,8 @@ static struct serdev_device_driver pibridge_driver = {
 	.remove	= pibridge_remove,
 };
 module_serdev_device_driver(pibridge_driver);
+
+module_param(pibridge_baudrate, int, 0444);
+MODULE_PARM_DESC(pibridge_baudrate, "Baudrate for PiBridge UART");
 
 MODULE_LICENSE("GPL");
