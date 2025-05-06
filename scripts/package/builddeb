@@ -135,6 +135,27 @@ install_kernel_headers () {
 
 	mkdir -p $pdir/lib/modules/$version/
 	ln -s /usr/src/linux-headers-$version $pdir/lib/modules/$version/build
+
+	# Install the maintainer scripts
+	# Note: hook scripts under /etc/kernel are also executed by official Debian
+	# kernel packages, as well as kernel packages built using make-kpkg.
+	debhookdir=${KDEB_HOOKDIR:-/etc/kernel}
+
+	mkdir -p "${pdir}${debhookdir}/header_postinst.d"
+
+	mkdir -p "${pdir}/DEBIAN"
+	cat <<-EOF > "${pdir}/DEBIAN/postinst"
+	#!/bin/sh
+
+	set -e
+
+	# Pass maintainer script parameters to hook scripts
+	export DEB_MAINT_PARAMS="\$*"
+
+	test -d ${debhookdir}/header_postinst.d && run-parts --arg="${KERNELRELEASE}" ${debhookdir}/header_postinst.d
+	exit 0
+	EOF
+	chmod 755 "${pdir}/DEBIAN/postinst"
 }
 
 install_libc_headers () {
