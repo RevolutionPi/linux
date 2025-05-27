@@ -18,6 +18,7 @@ set -e
 : ${DEBFULLNAME:="KUNBUS GmbH"}
 : ${ARCH:=arm64}
 : ${RELEASE:=bookworm}
+: ${DEBIAN_VERSION:=12}
 : ${RPI_ARCH_SUFFIX:=-v8}
 
 VERBOSITY=0
@@ -91,7 +92,7 @@ revpi_vers="$(printf "%s\n" "$upstream_version" \
 upstream_vers="${upstream_version#v}"
 
 pkg_name_ext="${mainline_vers}-revpi${revpi_vers}-rpi${RPI_ARCH_SUFFIX}"
-pkg_vers="${upstream_vers}-1+deb12+1${deb_rev_append}"
+pkg_vers="${upstream_vers}-1+deb${DEBIAN_VERSION}+1${deb_rev_append}"
 
 # export variables so kbuild knows about them, too
 export ARCH FORCE_CHANGELOG_GEN FORCE_COPYRIGHT_GEN
