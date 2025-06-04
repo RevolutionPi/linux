@@ -5,6 +5,9 @@ include:
   - project: "revolutionpi/infrastructure/ci-templates"
     file: "kernel-devel-package.yml"
 
+variables:
+  GIT_STRATEGY: fetch
+
 checkpatch:
   stage: test
   image: debian:bookworm-slim
