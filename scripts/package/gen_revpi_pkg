@@ -23,9 +23,9 @@ set -e
 
 VERBOSITY=0
 EXTRA_MAKE_OPTS=""
-# v${MAINLINE_VER}-rt${RT_VER}-revpi${REVPI_VER}
+# v${MAINLINE_VER}-revpi${REVPI_VER}
 # the (.*) indicates that the upstream version can be appended with snapshot-specific string
-UPSTREAM_VERS_REGEX='^v\([[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\)-rt\([[:digit:]]\+\)-revpi\([[:digit:]]\+\).*'
+UPSTREAM_VERS_REGEX='^v\([[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\)-revpi\([[:digit:]]\+\).*'
 FORCE_CHANGELOG_GEN=""
 LINTIAN_OVERRIDES_FILE="debian/source/lintian-overrides"
 
@@ -46,7 +46,7 @@ usage() {
 
 	Arguments:
 	  UPSTREAM_VERSION    The upstream version of the project, formatted as
-	                      "v\${MAINLINE_VER}-rt\${RT_VER}-revpi\${REVPI_VER}"
+	                      "v\${MAINLINE_VER}-revpi\${REVPI_VER}"
 	                      Additionally, an arbitrary string can be appended,
 	                      e.g. when building a snapshot.
 	__EOF__
@@ -85,10 +85,8 @@ fi
 
 mainline_vers="$(printf "%s\n" "$upstream_version" \
 	| sed -e "s/$UPSTREAM_VERS_REGEX/\1/")"
-rt_vers="$(printf "%s\n" "$upstream_version" \
-	| sed -e "s/$UPSTREAM_VERS_REGEX/\2/")"
 revpi_vers="$(printf "%s\n" "$upstream_version" \
-	| sed -e "s/$UPSTREAM_VERS_REGEX/\3/")"
+	| sed -e "s/$UPSTREAM_VERS_REGEX/\2/")"
 upstream_vers="${upstream_version#v}"
 
 pkg_name_ext="${mainline_vers}-revpi${revpi_vers}-rpi${RPI_ARCH_SUFFIX}"
