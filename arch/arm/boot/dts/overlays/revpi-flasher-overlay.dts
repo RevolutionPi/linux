@@ -244,6 +244,7 @@
 				compatible = "raspberrypi,dsi-7inch";
 				reset-gpio = <&display_mcu 0 GPIO_ACTIVE_LOW>;
 				backlight = <&display_mcu>;
+				rotation = <270>;
 
 				port {
 					panel_in: endpoint {
