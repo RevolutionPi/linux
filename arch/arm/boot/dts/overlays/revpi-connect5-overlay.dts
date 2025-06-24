@@ -226,19 +226,19 @@
 				/* TX, RX, TX_EN */
 				function = "uart2";
 				pins = "gpio4", "gpio5", "gpio7";
-				bias-disabled;
+				bias-disable;
 			};
 			rs485_uart_pins: rs485_uart_pins {
 				/* TX RX TX_EN */
 				function = "uart4";
 				pins = "gpio12", "gpio13", "gpio15";
-				bias-disabled;
+				bias-disable;
 			};
 			tpm_pins: tpm_pins {
 				/* IRQ */
 				function = "gpio";
 				pins = "gpio10";
-				bias-disabled;
+				bias-disable;
 			};
 		};
 	};

@@ -21,6 +21,9 @@
 #define PIBRIDGE_RESP_OK		0x4000
 #define PIBRIDGE_RESP_ERR		0x8000
 
+static int pibridge_baudrate = PIBRIDGE_BAUDRATE;
+static int pibridge_io_timeout = PIBRIDGE_IO_TIMEOUT;
+
 struct pibridge_stats {
 	u64 tx_bytes;
 	u64 tx_err;
@@ -245,7 +248,10 @@ static const struct serdev_device_ops pibridge_serdev_ops = {
 
 static int pibridge_set_serial(struct serdev_device *serdev)
 {
-	serdev_device_set_baudrate(serdev, PIBRIDGE_BAUDRATE);
+	if (pibridge_baudrate != PIBRIDGE_BAUDRATE)
+		dev_warn(&serdev->dev, "Using non-standard baudrate: %d (default: %d)\n",
+		         pibridge_baudrate, PIBRIDGE_BAUDRATE);
+	serdev_device_set_baudrate(serdev, pibridge_baudrate);
 	/* RTS is used to drive Transmit Enable pin, hence no flow control */
 	serdev_device_set_flow_control(serdev, false);
 	return serdev_device_set_parity(serdev, SERDEV_PARITY_EVEN);
@@ -312,6 +318,10 @@ static int pibridge_probe(struct serdev_device *serdev)
 			"failed to set serial parameters: %i\n", ret);
 		goto err_serdev_close;
 	}
+
+	if (pibridge_io_timeout != PIBRIDGE_IO_TIMEOUT)
+		dev_warn(&serdev->dev, "Using non-standard io timeout: %d (default: %d)\n",
+		         pibridge_io_timeout, PIBRIDGE_IO_TIMEOUT);
 
 	dev_info(&serdev->dev, "pibridge initialized\n");
 
@@ -393,8 +403,8 @@ EXPORT_SYMBOL(pibridge_recv_timeout);
 
 int pibridge_recv(void *buf, u8 len)
 {
-	/* using default timeout PIBRIDGE_IO_TIMEOUT */
-	return pibridge_recv_timeout(buf, len, PIBRIDGE_IO_TIMEOUT);
+	/* using default timeout pibridge_io_timeout */
+	return pibridge_recv_timeout(buf, len, pibridge_io_timeout);
 }
 EXPORT_SYMBOL(pibridge_recv);
 
@@ -559,7 +569,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	if (crc != crc_rcv) {
 		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
-			crc_rcv, crc);
+			crc, crc_rcv);
 		PIBRIDGE_INC_STATS(rx_gate_crc_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
@@ -573,7 +583,7 @@ int pibridge_req_gate(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		      void *rcv_buf, u8 rcv_len)
 {
 	return pibridge_req_gate_tmt(dst, cmd, snd_buf, snd_len, rcv_buf,
-				     rcv_len, PIBRIDGE_IO_TIMEOUT);
+				     rcv_len, pibridge_io_timeout);
 }
 EXPORT_SYMBOL(pibridge_req_gate);
 
@@ -690,7 +700,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		 * received data as well as the following CRC checksum byte.
 		 */
 		if (pibridge_discard_timeout(to_discard + 1,
-					     PIBRIDGE_IO_TIMEOUT))
+					     pibridge_io_timeout))
 			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
 				to_discard);
@@ -713,8 +723,8 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 
 	if (crc != crc_rcv) {
 		dev_dbg(&serdev->dev,
-			"invalid checksum (expected: 0x%02x, got 0x%02x\n",
-			crc_rcv, crc);
+			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
+			crc, crc_rcv);
 		PIBRIDGE_INC_STATS(rx_io_crc_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
@@ -743,5 +753,11 @@ static struct serdev_device_driver pibridge_driver = {
 	.remove	= pibridge_remove,
 };
 module_serdev_device_driver(pibridge_driver);
+
+module_param(pibridge_baudrate, int, 0444);
+MODULE_PARM_DESC(pibridge_baudrate, "Baudrate for PiBridge UART");
+
+module_param(pibridge_io_timeout, int, 0644);
+MODULE_PARM_DESC(pibridge_io_timeout, "IO timeout in milliseconds for receiving PiBridge telegrams");
 
 MODULE_LICENSE("GPL");
