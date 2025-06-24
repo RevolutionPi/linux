@@ -1,3 +1,10 @@
+linux-revpi-v8 (6.6.84-rt52-revpi9-1+deb12+1) bookworm; urgency=medium
+
+  * On RevPi connect 5 disable EEE on eth0. This resolves high packet loss in
+    EEE capable setups.
+
+ -- Lino Sanfilippo <l.sanfilippo@kunbus.com>  Tue, 24 Jun 2025 12:20:32 +0000
+
 linux-revpi-v8 (6.6.84-rt52-revpi8-1+deb12+1) bookworm; urgency=medium
 
   * Kernel updated to version 6.6.84-rt52.

@@ -1,3 +1,24 @@
+linux-revpi-v8 (6.6.84-rt52-revpi9-1+deb12+1) bookworm; urgency=medium
+
+  [ Nicolai Buchwitz ]
+  * pibridge-serdev: swap crc in debug message
+  * pibridge-serdev: add missing bracket
+  * pibridge-serdev: Make baudrate configurable
+  * pibridge-serdev: Make io timeout configurable
+
+  [ Thomas Böhler ]
+  * ci: explicitly enable the fetch GIT_STRATEGY
+  * dts/revpi-flasher: add overlay
+
+  [ Nicolai Buchwitz ]
+  * dts: cm5/pi5: Disable EEE on rp1
+
+  [ Thomas Böhler ]
+  * dts/revpi-flasher: rotate screen 270 degrees
+  * dts/connect5: use proper bias-disable parameter
+
+ -- Lino Sanfilippo <l.sanfilippo@kunbus.com>  Tue, 24 Jun 2025 12:18:49 +0000
+
 linux-revpi-v8 (6.6.84-rt52-revpi8-1+deb12+1) bookworm; urgency=medium
 
   [ Nicolai Buchwitz ]
