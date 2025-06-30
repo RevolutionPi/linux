@@ -184,22 +184,22 @@
 					"LEDS_A2GRN", // GPIO5 / P0_5
 					"LEDS_A2BLUE", // GPIO6 / P0_6
 					"LEDS_PWRBLUE", // GPIO7 / P0_7
-					"DUT1_RUN", // GPIO8 / P1_0
-					"DUT2_RUN", // GPIO9 / P1_1
-					"DUT3_RUN", // GPIO10 / P1_2
-					"DUT4_RUN", // GPIO11 / P1_3
-					"DUT5_RUN", // GPIO12 / P1_4
-					"DUT6_RUN", // GPIO13 / P1_5
-					"DUT7_RUN", // GPIO14 / P1_6
-					"DUT8_RUN", // GPI15 / P1_7
-					"DUT1_DIAG", // GPIO16 / P2_0
-					"DUT2_DIAG", // GPIO17 / P2_1
-					"DUT3_DIAG", // GPIO18 / P2_2
-					"DUT4_DIAG", // GPIO19 / P2_3
-					"DUT5_DIAG", // GPIO20 / P2_4
-					"DUT6_DIAG", // GPIO21 / P2_5
-					"DUT7_DIAG", // GPIO22 / P2_6
-					"DUT8_DIAG"; // GPIO23 / P2_7
+					"DUT4_RUN", // GPIO8 / P1_0
+					"DUT3_RUN", // GPIO9 / P1_1
+					"DUT2_RUN", // GPIO10 / P1_2
+					"DUT7_RUN", // GPIO11 / P1_3
+					"DUT8_RUN", // GPIO12 / P1_4
+					"DUT7_RUN", // GPIO13 / P1_5
+					"DUT6_RUN", // GPIO14 / P1_6
+					"DUT5_RUN", // GPIO15 / P1_7
+					"DUT4_DIAG", // GPIO16 / P2_0
+					"DUT3_DIAG", // GPIO17 / P2_1
+					"DUT2_DIAG", // GPIO18 / P2_2
+					"DUT7_DIAG", // GPIO19 / P2_3
+					"DUT8_DIAG", // GPIO20 / P2_4
+					"DUT7_DIAG", // GPIO21 / P2_5
+					"DUT6_DIAG", // GPIO22 / P2_6
+					"DUT5_DIAG"; // GPIO23 / P2_7
 			};
 
 			/* Raspberry Pi display configuration taken from
