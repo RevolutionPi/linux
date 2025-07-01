@@ -187,7 +187,7 @@
 					"DUT4_RUN", // GPIO8 / P1_0
 					"DUT3_RUN", // GPIO9 / P1_1
 					"DUT2_RUN", // GPIO10 / P1_2
-					"DUT7_RUN", // GPIO11 / P1_3
+					"DUT1_RUN", // GPIO11 / P1_3
 					"DUT8_RUN", // GPIO12 / P1_4
 					"DUT7_RUN", // GPIO13 / P1_5
 					"DUT6_RUN", // GPIO14 / P1_6
