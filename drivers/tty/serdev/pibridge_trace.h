@@ -52,17 +52,6 @@ DECLARE_EVENT_CLASS(pibridge_gate_header_class,
 );
 
 /*
- * pibridge_send_gate_header
- *
- * Info: the header of a gateway packet to be sent.
- * Time: before the gate packet header is sent on the wire.
- */
-DEFINE_EVENT(pibridge_gate_header_class, pibridge_send_gate_header,
-	TP_PROTO(struct pibridge_pkthdr_gate *hdr),
-	TP_ARGS(hdr)
-);
-
-/*
  * pibridge_receive_gate_header
  *
  * Info: the header of a received gateway packet.
@@ -112,17 +101,6 @@ DECLARE_EVENT_CLASS(pibridge_io_header_class,
 );
 
 /*
- * pibridge_send_io_header
- *
- * Info: the header of an IO packet to be sent.
- * Time: before the IO packet header is sent on the wire.
- */
-DEFINE_EVENT(pibridge_io_header_class, pibridge_send_io_header,
-	TP_PROTO(struct pibridge_pkthdr_io *hdr),
-	TP_ARGS(hdr)
-);
-
-/*
  * pibridge_receive_io_header
  *
  * Info: the header of a received IO packet.
@@ -131,50 +109,6 @@ DEFINE_EVENT(pibridge_io_header_class, pibridge_send_io_header,
 DEFINE_EVENT(pibridge_io_header_class, pibridge_receive_io_header,
 	TP_PROTO(struct pibridge_pkthdr_io *hdr),
 	TP_ARGS(hdr)
-);
-
-/*
- * pibridge_send_crc_class
- *
- * Print the CRC.
- *
- * crc: the CRC that is part of the sent packet.
- */
-DECLARE_EVENT_CLASS(pibridge_send_crc_class,
-	TP_PROTO(u8 crc),
-	TP_ARGS(crc),
-	TP_STRUCT__entry(
-		__field(u8, crc)
-	),
-	TP_fast_assign(
-		__entry->crc = crc;
-	),
-	TP_printk(
-		"crc=0x%02x",
-		__entry->crc
-	)
-);
-
-/*
- * pibridge_send_io_crc
- *
- * Info: the CRC of an IO packet to be sent.
- * Time: before the CRC of an IO packet is sent on the wire.
- */
-DEFINE_EVENT(pibridge_send_crc_class, pibridge_send_io_crc,
-	TP_PROTO(u8 crc),
-	TP_ARGS(crc)
-);
-
-/*
- * pibridge_send_gate_crc
- *
- * Info: the CRC to send for the gateway packet.
- * Time: before the CRC of a gateway packet is sent on the wire.
- */
-DEFINE_EVENT(pibridge_send_crc_class, pibridge_send_gate_crc,
-	TP_PROTO(u8 crc),
-	TP_ARGS(crc)
 );
 
 /*
@@ -278,28 +212,6 @@ DEFINE_EVENT(pibridge_buffer_data_class, pibridge_receive_io_data,
  * Time: after the data bytes of a gateway response packet have been received.
  */
 DEFINE_EVENT(pibridge_buffer_data_class, pibridge_receive_gate_data,
-	TP_PROTO(const unsigned char *buffer, unsigned int len),
-	TP_ARGS(buffer, len)
-);
-
-/*
- * pibridge_send_io_data
- *
- * Info: the data sent with an IO request packet.
- * Time: before the data portion of an IO packet is sent on the wire.
- */
-DEFINE_EVENT(pibridge_buffer_data_class, pibridge_send_io_data,
-	TP_PROTO(const unsigned char *buffer, unsigned int len),
-	TP_ARGS(buffer, len)
-);
-
-/*
- * pibridge_send_gate_data
- *
- * Info: the data sent with a gateway request packet.
- * Time: before the data portion of a gateway packet is sent on the wire.
- */
-DEFINE_EVENT(pibridge_buffer_data_class, pibridge_send_gate_data,
 	TP_PROTO(const unsigned char *buffer, unsigned int len),
 	TP_ARGS(buffer, len)
 );
