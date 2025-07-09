@@ -195,7 +195,7 @@
 					"DUT4_DIAG", // GPIO16 / P2_0
 					"DUT3_DIAG", // GPIO17 / P2_1
 					"DUT2_DIAG", // GPIO18 / P2_2
-					"DUT7_DIAG", // GPIO19 / P2_3
+					"DUT1_DIAG", // GPIO19 / P2_3
 					"DUT8_DIAG", // GPIO20 / P2_4
 					"DUT7_DIAG", // GPIO21 / P2_5
 					"DUT6_DIAG", // GPIO22 / P2_6
