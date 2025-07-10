@@ -256,20 +256,6 @@
 	};
 
 	fragment@4 {
-		target = <&i2c0if>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
-
-	fragment@5 {
-		target = <&i2c0mux>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
-
-	fragment@6 {
 		target = <&uart4>;
 		__overlay__ {
 			pinctrl-names = "default";
@@ -279,7 +265,7 @@
 	};
 
 	/* Permanently disable HDMI1 */
-	fragment@7 {
+	fragment@5 {
 		target = <&hdmi1>;
 		__overlay__ {
 			/* make compatible unusable so it can't get probed */
@@ -288,7 +274,7 @@
 		};
 	};
 
-	fragment@8 {
+	fragment@6 {
 		target = <&ddc1>;
 		__overlay__ {
 			/* make compatible unusable so it can't get probed */
@@ -297,7 +283,7 @@
 		};
 	};
 
-	fragment@9 {
+	fragment@7 {
 		target = <&pixelvalve1>;
 		__overlay__ {
 			/* make compatible unusable so it can't get probed */
