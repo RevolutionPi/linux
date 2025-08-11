@@ -258,6 +258,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&exp_power_pins>;
 				reg = <0x21>;
+				vcc-supply = <&vdd_3v3_reg>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -291,6 +292,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&exp_core_pins>;
 				reg = <0x22>;
+				vcc-supply = <&vdd_3v3_reg>;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
