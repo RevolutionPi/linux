@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-FileCopyrightText: Copyright 2025 KUNBUS GmbH
+
+/*
+ * Device tree overlay for Revolution Pi by KUNBUS
+ *
+ * RevPi Flat S (2025)
+ */
+
+#include "revpi-flat-s-2022-overlay.dts"
+
+/{
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			compatible = "kunbus,revpi-flat-s-2025",
+				     "kunbus,revpi-flat", "brcm,bcm2711";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			/delete-node/ rtc@51;
+			rtc@53 {
+				compatible = "nxp,pcf2131";
+				reg = <0x53>;
+				reset-source;
+				status = "okay";
+			};
+		};
+	};
+};

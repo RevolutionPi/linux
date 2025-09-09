@@ -244,6 +244,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	revpi-flat.dtbo \
 	revpi-flat-s-2022.dtbo \
 	revpi-flat-s-2022-dsa.dtbo \
+	revpi-flat-s-2025.dtbo \
 	revpi-flat-dt-blob.dtbo \
 	revpi-hat-eeprom.dtbo \
 	revpi-hat-eeprom-pi5.dtbo \
