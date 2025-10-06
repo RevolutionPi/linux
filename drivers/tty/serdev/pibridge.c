@@ -17,7 +17,6 @@
 #define PIBRIDGE_IO_TIMEOUT		10         // msec
 #define PIBRIDGE_BC_ADDR		0xff
 
-#define PIBRIDGE_CRC_LEN		1
 #define PIBRIDGE_RESP_CMD		0x3fff
 #define PIBRIDGE_RESP_OK		0x4000
 #define PIBRIDGE_RESP_ERR		0x8000
@@ -450,6 +449,126 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	return ret;
 }
 EXPORT_SYMBOL(pibridge_req_send_gate);
+
+int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
+			       struct pibridge_gate_datagram *resp)
+{
+	struct serdev_device *serdev = pibridge_s->serdev;
+	u8 to_receive;
+	u8 to_send;
+	u8 exp_crc;
+	int ret;
+	u8 crc;
+
+	/* Read fifo may contain stale data, so clear it first. */
+	pibridge_clear_fifo();
+
+	crc = pibridge_crc8(0, &req->hdr, sizeof(req->hdr));
+
+	if (req->hdr.len)
+		crc = pibridge_crc8(crc, req->data, req->hdr.len);
+
+	/* Set CRC in request. */
+	req->data[req->hdr.len] = crc;
+	to_send = sizeof(req->hdr) + req->hdr.len + PIBRIDGE_CRC_LEN;
+
+	ret = pibridge_send(req, to_send);
+	if (ret != to_send) {
+		dev_dbg(&serdev->dev,
+			"failed to send gate-datagram: (to send: %i, returned: %i)\n",
+			to_send, ret);
+		PIBRIDGE_INC_STATS(tx_gate_err);
+		return -EIO;
+	}
+	/* Do not wait for a response in case of a broadcast address. */
+	if (req->hdr.dst == PIBRIDGE_BC_ADDR)
+		return 0;
+
+	if (pibridge_recv_timeout(&resp->hdr, sizeof(resp->hdr),
+				  pibridge_io_timeout) != sizeof(resp->hdr)) {
+		dev_dbg(&serdev->dev,
+			"receive head error in gate-resp(hdr_len: %zd, timeout: %d)\n",
+			sizeof(resp->hdr), pibridge_io_timeout);
+		PIBRIDGE_INC_STATS(rx_gate_hdr_err);
+		return -EIO;
+	}
+
+	trace_pibridge_receive_gate_header(&resp->hdr);
+
+	if ((resp->hdr.cmd & PIBRIDGE_RESP_CMD) != req->hdr.cmd) {
+		dev_dbg(&serdev->dev,
+			"bad responded CMD code in gate-resp(cmd: %d)\n",
+			resp->hdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+	/* Either OK or ERR flag must be set. */
+	if ((resp->hdr.cmd & (PIBRIDGE_RESP_OK | PIBRIDGE_RESP_ERR)) == 0) {
+		dev_dbg(&serdev->dev,
+			"No RESP flag set in gate-resp(cmd: %d)\n",
+			resp->hdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+
+	if (resp->hdr.cmd & PIBRIDGE_RESP_ERR) {
+		if (resp->hdr.cmd & PIBRIDGE_RESP_OK) {
+			/* Both flags must not be set. */
+			dev_dbg(&serdev->dev,
+				"ERR and OK flag set in gate-resp(cmd: %d)\n",
+				resp->hdr.cmd);
+			PIBRIDGE_INC_STATS(rx_gate_format_inval);
+			PIBRIDGE_INC_STATS(rx_err);
+			return -EBADMSG;
+		}
+
+		dev_dbg(&serdev->dev, "ERR flag set in gate-resp(cmd: %d)\n",
+			resp->hdr.cmd);
+		PIBRIDGE_INC_STATS(rx_gate_remote_err);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+	/* Calculate CRC, so we can compare it with the sent CRC. */
+	exp_crc = pibridge_crc8(0, &resp->hdr, sizeof(resp->hdr));
+
+	to_receive = min(resp->hdr.len, PIBRIDGE_MAX_GATE_DATA);
+
+	if (to_receive) {
+		if (pibridge_recv(resp->data, to_receive) != to_receive) {
+			dev_dbg(&serdev->dev,
+				"receive data error in gate-req(len: %d)\n",
+				to_receive);
+			PIBRIDGE_INC_STATS(rx_gate_data_err);
+			return -EIO;
+		}
+		trace_pibridge_receive_gate_data(resp->data, to_receive);
+		exp_crc = pibridge_crc8(exp_crc, resp->data, to_receive);
+	}
+	/* We got the whole data, now get the CRC. */
+	if (pibridge_recv(&crc, sizeof(u8)) != sizeof(u8)) {
+		dev_dbg(&serdev->dev, "failed to receive CRC in gate-req\n");
+		PIBRIDGE_INC_STATS(rx_gate_crc_err);
+		return -EIO;
+	}
+
+	trace_pibridge_receive_gate_crc(crc, exp_crc);
+	/* Compare calculated CRC with received CRC. */
+	if (crc != exp_crc) {
+		dev_dbg(&serdev->dev,
+			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
+			exp_crc, crc);
+		PIBRIDGE_INC_STATS(rx_gate_crc_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
+	}
+	/* Store CRC for the caller. */
+	resp->data[resp->hdr.len] = crc;
+
+	return sizeof(resp->hdr) + to_receive;
+}
+EXPORT_SYMBOL(pibridge_req_gate_datagram);
 
 int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 			  void *rcv_buf, u8 rcv_len, u16 tmt)
