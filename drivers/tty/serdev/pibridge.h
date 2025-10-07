@@ -3,7 +3,7 @@
 
 #include <linux/types.h>
 
-#define PIBRIDGE_RECV_FIFO_SIZE		128
+#define PIBRIDGE_RECV_FIFO_SIZE		512
 
 struct pibridge_pkthdr_io {
 	u8 addr	:6;
