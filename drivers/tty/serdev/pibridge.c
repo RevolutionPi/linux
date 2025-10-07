@@ -17,6 +17,7 @@
 #define PIBRIDGE_IO_TIMEOUT		10         // msec
 #define PIBRIDGE_BC_ADDR		0xff
 
+#define PIBRIDGE_CRC_LEN		1
 #define PIBRIDGE_RESP_CMD		0x3fff
 #define PIBRIDGE_RESP_OK		0x4000
 #define PIBRIDGE_RESP_ERR		0x8000
@@ -413,7 +414,7 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 	int ret = 0;
 	u8 crc;
 
-	datagram_size = sizeof(*hdr) + buf_len + 1;
+	datagram_size = sizeof(*hdr) + buf_len + PIBRIDGE_CRC_LEN;
 
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
 	if (!datagram) {
@@ -542,7 +543,8 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		 * The provided buffer was too small. Discard the rest of the
 		 * received data as well as the following CRC checksum byte.
 		 */
-		if (pibridge_discard_timeout(to_discard + 1, tmt))
+		if (pibridge_discard_timeout(to_discard + PIBRIDGE_CRC_LEN,
+					     tmt))
 			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
 				to_discard);
@@ -592,7 +594,7 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 	int ret = 0;
 	u8 crc;
 
-	datagram_size = sizeof(*hdr) + buf_len + 1;
+	datagram_size = sizeof(*hdr) + buf_len + PIBRIDGE_CRC_LEN;
 
 	datagram = kmalloc(datagram_size, GFP_KERNEL);
 	if (!datagram) {
@@ -695,7 +697,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		 * The provided buffer was too small. Discard the rest of the
 		 * received data as well as the following CRC checksum byte.
 		 */
-		if (pibridge_discard_timeout(to_discard + 1,
+		if (pibridge_discard_timeout(to_discard + PIBRIDGE_CRC_LEN,
 					     pibridge_io_timeout))
 			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
