@@ -15,6 +15,7 @@
 
 #define PIBRIDGE_BAUDRATE		115200
 #define PIBRIDGE_IO_TIMEOUT		10         // msec
+#define PIBRIDGE_GATE_TIMEOUT		35         // msec
 #define PIBRIDGE_BC_ADDR		0xff
 
 #define PIBRIDGE_RESP_CMD		0x3fff
@@ -536,10 +537,12 @@ int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
 	to_receive = min(resp->hdr.len, PIBRIDGE_MAX_GATE_DATA);
 
 	if (to_receive) {
-		if (pibridge_recv(resp->data, to_receive) != to_receive) {
+		ret = pibridge_recv_timeout(resp->data, to_receive,
+					    PIBRIDGE_GATE_TIMEOUT);
+		if (ret != to_receive) {
 			dev_dbg(&serdev->dev,
-				"receive data error in gate-req(len: %d)\n",
-				to_receive);
+				"failed to receive data: (to receive: %i, returned: %i)\n",
+				to_receive, ret);
 			PIBRIDGE_INC_STATS(rx_gate_data_err);
 			return -EIO;
 		}
@@ -702,7 +705,7 @@ int pibridge_req_gate(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		      void *rcv_buf, u8 rcv_len)
 {
 	return pibridge_req_gate_tmt(dst, cmd, snd_buf, snd_len, rcv_buf,
-				     rcv_len, pibridge_io_timeout);
+				     rcv_len, PIBRIDGE_GATE_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_req_gate);
 
