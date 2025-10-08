@@ -646,7 +646,8 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	to_discard = pkthdr.len - to_receive;
 
 	if (to_receive) {
-		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
+		if (pibridge_recv_timeout(rcv_buf, to_receive, tmt) !=
+		    to_receive) {
 			dev_dbg(&serdev->dev,
 				"receive data error in gate-req(len: %d)\n",
 				to_receive);
@@ -675,7 +676,8 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
-	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
+	if (pibridge_recv_timeout(&crc_rcv, sizeof(u8), tmt) !=
+	    sizeof(u8)) {
 		dev_dbg(&serdev->dev, "failed to receive CRC in gate-req\n");
 		PIBRIDGE_INC_STATS(rx_gate_crc_err);
 		return -EIO;
