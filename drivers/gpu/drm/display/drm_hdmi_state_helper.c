@@ -24,7 +24,7 @@ void __drm_atomic_helper_connector_hdmi_reset(struct drm_connector *connector,
 	unsigned int max_bpc = connector->max_bpc;
 
 	new_conn_state->max_bpc = max_bpc;
-	new_conn_state->max_requested_bpc = max_bpc;
+	new_conn_state->max_requested_bpc = 8;
 	new_conn_state->hdmi.broadcast_rgb = DRM_HDMI_BROADCAST_RGB_AUTO;
 }
 EXPORT_SYMBOL(__drm_atomic_helper_connector_hdmi_reset);
@@ -291,6 +291,11 @@ hdmi_compute_format(const struct drm_connector *connector,
 	 */
 	if (hdmi_try_format_bpc(connector, conn_state, mode, bpc, HDMI_COLORSPACE_RGB)) {
 		conn_state->hdmi.output_format = HDMI_COLORSPACE_RGB;
+		return 0;
+	}
+
+	if (hdmi_try_format_bpc(connector, conn_state, mode, bpc, HDMI_COLORSPACE_YUV422)) {
+		conn_state->hdmi.output_format = HDMI_COLORSPACE_YUV422;
 		return 0;
 	}
 

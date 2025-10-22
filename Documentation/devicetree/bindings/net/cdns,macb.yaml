@@ -54,6 +54,7 @@ properties:
           - cdns,np4-macb             # NP4 SoC devices
           - microchip,sama7g5-emac    # Microchip SAMA7G5 ethernet interface
           - microchip,sama7g5-gem     # Microchip SAMA7G5 gigabit ethernet interface
+          - raspberrypi,rp1-gem       # Raspberry Pi RP1 gigabit ethernet interface
           - sifive,fu540-c000-gem     # SiFive FU540-C000 SoC
           - cdns,emac                 # Generic
           - cdns,gem                  # Generic
@@ -135,6 +136,22 @@ properties:
     description:
       Node containing PHY children. If this node is not present, then PHYs will
       be direct children.
+
+  cdns,aw2w-max-pipe:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      Maximum number of outstanding AXI write requests
+
+  cdns,ar2r-max-pipe:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      Maximum number of outstanding AXI read requests
+
+  cdns,use-aw2b-fill:
+    type: boolean
+    description:
+      If set, the maximum number of outstanding write transactions operates
+      between the AW to B AXI channel, instead of the AW to W AXI channel.
 
 patternProperties:
   "^ethernet-phy@[0-9a-f]$":

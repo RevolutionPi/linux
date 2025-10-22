@@ -147,6 +147,8 @@ patternProperties:
     description: arcx Inc. / Archronix Inc.
   "^aries,.*":
     description: Aries Embedded GmbH
+  "^arducam,.*":
+    description: Arducam Technology co., Ltd.
   "^arm,.*":
     description: ARM Ltd.
   "^armadeus,.*":
@@ -216,6 +218,8 @@ patternProperties:
     description: Shenzhen BigTree Tech Co., LTD
   "^bitmain,.*":
     description: Bitmain Technologies
+  "^blokas(labs)?,.*":
+    description: Vilniaus Blokas UAB
   "^blutek,.*":
     description: BluTek Power
   "^boe,.*":
@@ -557,6 +561,8 @@ patternProperties:
     description: General Electric Company
   "^geekbuying,.*":
     description: GeekBuying
+  "^geekworm,.*":
+    description: Geekworm
   "^gef,.*":
     description: GE Fanuc Intelligent Platforms Embedded Systems, Inc.
   "^GEFanuc,.*":

@@ -15,6 +15,7 @@
 #include <drm/drm_debugfs.h>
 #include <drm/drm_device.h>
 #include <drm/drm_encoder.h>
+#include <drm/drm_fourcc.h>
 #include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_managed.h>
 #include <drm/drm_mm.h>
@@ -83,6 +84,8 @@ struct vc4_perfmon {
 enum vc4_gen {
 	VC4_GEN_4,
 	VC4_GEN_5,
+	VC4_GEN_6_C,
+	VC4_GEN_6_D,
 };
 
 struct vc4_dev {
@@ -93,8 +96,12 @@ struct vc4_dev {
 
 	unsigned int irq;
 
+	bool firmware_kms;
+	struct rpi_firmware *firmware;
+
 	struct vc4_hvs *hvs;
 	struct vc4_v3d *v3d;
+	struct vc4_fkms *fkms;
 
 	struct vc4_hang_state *hang_state;
 
@@ -315,6 +322,34 @@ struct vc4_v3d {
 	struct debugfs_regset32 regset;
 };
 
+#define VC4_NUM_LBM_HANDLES 64
+struct vc4_lbm_refcounts {
+	refcount_t refcount;
+
+	/* Allocation size */
+	size_t size;
+	/* Our allocation in LBM. */
+	struct drm_mm_node lbm;
+
+	/* Pointer back to the HVS structure */
+	struct vc4_hvs *hvs;
+};
+
+#define VC4_NUM_UPM_HANDLES 32
+struct vc4_upm_refcounts {
+	refcount_t refcount;
+
+	/* Allocation size */
+	size_t size;
+	/* Our allocation in UPM for prefetching. */
+	struct drm_mm_node upm;
+
+	/* Pointer back to the HVS structure */
+	struct vc4_hvs *hvs;
+};
+
+#define HVS_NUM_CHANNELS 3
+
 struct vc4_hvs {
 	struct vc4_dev *vc4;
 	struct platform_device *pdev;
@@ -323,6 +358,14 @@ struct vc4_hvs {
 	unsigned int dlist_mem_size;
 
 	struct clk *core_clk;
+	struct clk *disp_clk;
+
+	struct {
+		unsigned int desc;
+		unsigned int enabled: 1;
+	} eof_irq[HVS_NUM_CHANNELS];
+
+	bool bg_fill[HVS_NUM_CHANNELS];
 
 	unsigned long max_core_rate;
 
@@ -330,11 +373,24 @@ struct vc4_hvs {
 	 * list.  Units are dwords.
 	 */
 	struct drm_mm dlist_mm;
+
 	/* Memory manager for the LBM memory used by HVS scaling. */
 	struct drm_mm lbm_mm;
+	struct ida lbm_handles;
+	struct vc4_lbm_refcounts lbm_refcounts[VC4_NUM_LBM_HANDLES + 1];
+
+	/* Memory manager for the UPM memory used for prefetching. */
+	struct drm_mm upm_mm;
+	struct ida upm_handles;
+	struct vc4_upm_refcounts upm_refcounts[VC4_NUM_UPM_HANDLES + 1];
+
 	spinlock_t mm_lock;
 
+	struct list_head stale_dlist_entries;
+	struct work_struct free_dlist_work;
+
 	struct drm_mm_node mitchell_netravali_filter;
+	struct drm_mm_node nearest_neighbour_filter;
 
 	struct debugfs_regset32 regset;
 
@@ -353,7 +409,7 @@ struct vc4_hvs {
 	bool vc5_hdmi_enable_4096by2160;
 };
 
-#define HVS_NUM_CHANNELS 3
+#define HVS_UBM_WORD_SIZE 256
 
 struct vc4_hvs_state {
 	struct drm_private_state base;
@@ -400,7 +456,7 @@ struct vc4_plane_state {
 	 */
 	u32 pos0_offset;
 	u32 pos2_offset;
-	u32 ptr0_offset;
+	u32 ptr0_offset[DRM_FORMAT_MAX_PLANES];
 	u32 lbm_offset;
 
 	/* Offset where the plane's dlist was last stored in the
@@ -410,7 +466,7 @@ struct vc4_plane_state {
 
 	/* Clipped coordinates of the plane on the display. */
 	int crtc_x, crtc_y, crtc_w, crtc_h;
-	/* Clipped area being scanned from in the FB. */
+	/* Clipped area being scanned from in the FB in u16.16 format */
 	u32 src_x, src_y;
 
 	u32 src_w[2], src_h[2];
@@ -419,14 +475,19 @@ struct vc4_plane_state {
 	enum vc4_scaling_mode x_scaling[2], y_scaling[2];
 	bool is_unity;
 	bool is_yuv;
-
-	/* Offset to start scanning out from the start of the plane's
-	 * BO.
+	/* Allows use of nearest neighbour scaling filter when doing unity YUV444
+	 * workaround
 	 */
-	u32 offsets[3];
+	bool is_yuv444_unity;
 
 	/* Our allocation in LBM for temporary storage during scaling. */
-	struct drm_mm_node lbm;
+	unsigned int lbm_handle;
+
+	/* The Unified Pre-Fetcher Handle */
+	unsigned int upm_handle[DRM_FORMAT_MAX_PLANES];
+
+	/* Number of lines to pre-fetch */
+	unsigned int upm_buffer_lines;
 
 	/* Set when the plane has per-pixel alpha content or does not cover
 	 * the entire screen. This is a hint to the CRTC that it might need
@@ -462,7 +523,8 @@ enum vc4_encoder_type {
 	VC4_ENCODER_TYPE_DSI1,
 	VC4_ENCODER_TYPE_SMI,
 	VC4_ENCODER_TYPE_DPI,
-	VC4_ENCODER_TYPE_TXP,
+	VC4_ENCODER_TYPE_TXP0,
+	VC4_ENCODER_TYPE_TXP1,
 };
 
 struct vc4_encoder {
@@ -476,6 +538,7 @@ struct vc4_encoder {
 
 	void (*post_crtc_disable)(struct drm_encoder *encoder, struct drm_atomic_state *state);
 	void (*post_crtc_powerdown)(struct drm_encoder *encoder, struct drm_atomic_state *state);
+	void (*vblank)(struct drm_encoder *encoder);
 };
 
 #define to_vc4_encoder(_encoder)				\
@@ -509,7 +572,18 @@ struct vc4_crtc_data {
 	int hvs_output;
 };
 
-extern const struct vc4_crtc_data vc4_txp_crtc_data;
+struct vc4_txp_data {
+	struct vc4_crtc_data	base;
+	enum vc4_encoder_type encoder_type;
+	unsigned int high_addr_ptr_reg;
+	unsigned int has_byte_enable:1;
+	unsigned int size_minus_one:1;
+	unsigned int supports_40bit_addresses:1;
+};
+
+extern const struct vc4_txp_data bcm2712_mop_data;
+extern const struct vc4_txp_data bcm2712_moplet_data;
+extern const struct vc4_txp_data bcm2835_txp_data;
 
 struct vc4_pv_data {
 	struct vc4_crtc_data	base;
@@ -519,6 +593,8 @@ struct vc4_pv_data {
 
 	/* Number of pixels output per clock period */
 	u8 pixels_per_clock;
+	/* Number of pixels output per clock period when in an interlaced mode */
+	u8 pixels_per_clock_int;
 
 	enum vc4_encoder_type encoder_types[4];
 };
@@ -531,6 +607,8 @@ extern const struct vc4_pv_data bcm2711_pv1_data;
 extern const struct vc4_pv_data bcm2711_pv2_data;
 extern const struct vc4_pv_data bcm2711_pv3_data;
 extern const struct vc4_pv_data bcm2711_pv4_data;
+extern const struct vc4_pv_data bcm2712_pv0_data;
+extern const struct vc4_pv_data bcm2712_pv1_data;
 
 struct vc4_crtc {
 	struct drm_crtc base;
@@ -597,19 +675,21 @@ vc4_crtc_to_vc4_pv_data(const struct vc4_crtc *crtc)
 struct drm_encoder *vc4_get_crtc_encoder(struct drm_crtc *crtc,
 					 struct drm_crtc_state *state);
 
+struct vc4_hvs_dlist_allocation {
+	struct list_head node;
+	struct drm_mm_node mm_node;
+	unsigned int channel;
+	u8 target_frame_count;
+	bool dlist_programmed;
+};
+
 struct vc4_crtc_state {
 	struct drm_crtc_state base;
-	/* Dlist area for this CRTC configuration. */
-	struct drm_mm_node mm;
+	struct vc4_hvs_dlist_allocation *mm;
 	bool txp_armed;
 	unsigned int assigned_channel;
 
-	struct {
-		unsigned int left;
-		unsigned int right;
-		unsigned int top;
-		unsigned int bottom;
-	} margins;
+	struct drm_connector_tv_margins margins;
 
 	unsigned long hvs_load;
 
@@ -645,6 +725,12 @@ struct vc4_crtc_state {
 		kunit_fail_current_test("Accessing a register in a unit test!\n");	\
 		writel(val, hvs->regs + (offset));					\
 	} while (0)
+
+#define HVS_READ6(offset) \
+	HVS_READ(hvs->vc4->gen == VC4_GEN_6_C ? SCALER6_ ## offset : SCALER6D_ ## offset)
+
+#define HVS_WRITE6(offset, val) \
+	HVS_WRITE(hvs->vc4->gen == VC4_GEN_6_C ? SCALER6_ ## offset : SCALER6D_ ## offset, val)
 
 #define VC4_REG32(reg) { .name = #reg, .offset = reg }
 
@@ -970,6 +1056,9 @@ extern struct platform_driver vc4_dsi_driver;
 /* vc4_fence.c */
 extern const struct dma_fence_ops vc4_fence_ops;
 
+/* vc4_firmware_kms.c */
+extern struct platform_driver vc4_firmware_kms_driver;
+
 /* vc4_gem.c */
 int vc4_gem_init(struct drm_device *dev);
 int vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
@@ -1008,10 +1097,14 @@ void vc4_irq_reset(struct drm_device *dev);
 
 /* vc4_hvs.c */
 extern struct platform_driver vc4_hvs_driver;
-struct vc4_hvs *__vc4_hvs_alloc(struct vc4_dev *vc4, struct platform_device *pdev);
+struct vc4_hvs *__vc4_hvs_alloc(struct vc4_dev *vc4,
+				void __iomem *regs,
+				struct platform_device *pdev);
 void vc4_hvs_stop_channel(struct vc4_hvs *hvs, unsigned int output);
 int vc4_hvs_get_fifo_from_output(struct vc4_hvs *hvs, unsigned int output);
 u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo);
+void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
+				    struct vc4_hvs_dlist_allocation *alloc);
 int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void vc4_hvs_atomic_begin(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void vc4_hvs_atomic_enable(struct drm_crtc *crtc, struct drm_atomic_state *state);
@@ -1029,6 +1122,12 @@ int vc4_kms_load(struct drm_device *dev);
 struct drm_plane *vc4_plane_init(struct drm_device *dev,
 				 enum drm_plane_type type,
 				 uint32_t possible_crtcs);
+void vc4_plane_reset(struct drm_plane *plane);
+void vc4_plane_destroy_state(struct drm_plane *plane,
+			     struct drm_plane_state *state);
+struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane);
+int vc4_plane_atomic_check(struct drm_plane *plane,
+			   struct drm_atomic_state *state);
 int vc4_plane_create_additional_planes(struct drm_device *dev);
 u32 vc4_plane_write_dlist(struct drm_plane *plane, u32 __iomem *dlist);
 u32 vc4_plane_dlist_size(const struct drm_plane_state *state);

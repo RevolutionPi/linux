@@ -4930,6 +4930,8 @@ static const struct {
  */
 static int hci_dev_setup_sync(struct hci_dev *hdev)
 {
+	struct fwnode_handle *fwnode =
+		hdev->dev.parent ? dev_fwnode(hdev->dev.parent) : NULL;
 	int ret = 0;
 	bool invalid_bdaddr;
 	size_t i;
@@ -4958,7 +4960,8 @@ static int hci_dev_setup_sync(struct hci_dev *hdev)
 			 test_bit(HCI_QUIRK_USE_BDADDR_PROPERTY, &hdev->quirks);
 	if (!ret) {
 		if (test_bit(HCI_QUIRK_USE_BDADDR_PROPERTY, &hdev->quirks) &&
-		    !bacmp(&hdev->public_addr, BDADDR_ANY))
+		    !bacmp(&hdev->public_addr, BDADDR_ANY) &&
+		    (invalid_bdaddr || !fwnode_property_present(fwnode, "fallback-bd-address")))
 			hci_dev_get_bd_addr_from_property(hdev);
 
 		if (invalid_bdaddr && bacmp(&hdev->public_addr, BDADDR_ANY) &&

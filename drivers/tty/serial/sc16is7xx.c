@@ -821,6 +821,8 @@ static bool sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
 
 		if (rxlen)
 			sc16is7xx_handle_rx(port, rxlen, iir);
+		else
+			rc = false;
 		break;
 		/* CTSRTS interrupt comes only when CTS goes inactive */
 	case SC16IS7XX_IIR_CTSRTS_SRC:
@@ -1196,6 +1198,9 @@ static int sc16is7xx_startup(struct uart_port *port)
 	      SC16IS7XX_IER_MSI_BIT;
 	sc16is7xx_port_write(port, SC16IS7XX_IER_REG, val);
 
+	/* Initialize the Modem Control signals to current status */
+	one->old_mctrl = sc16is7xx_get_hwmctrl(port);
+
 	/* Enable modem status polling */
 	uart_port_lock_irqsave(port, &flags);
 	sc16is7xx_enable_ms(port);
@@ -1463,7 +1468,7 @@ static int sc16is7xx_setup_mctrl_ports(struct sc16is7xx_port *s,
 }
 
 static const struct serial_rs485 sc16is7xx_rs485_supported = {
-	.flags = SER_RS485_ENABLED | SER_RS485_RTS_AFTER_SEND,
+	.flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND | SER_RS485_RTS_AFTER_SEND,
 	.delay_rts_before_send = 1,
 	.delay_rts_after_send = 1,	/* Not supported but keep returning -EINVAL */
 };

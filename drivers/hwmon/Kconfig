@@ -2167,11 +2167,12 @@ config SENSORS_INA2XX
 	select REGMAP_I2C
 	help
 	  If you say yes here you get support for INA219, INA220, INA226,
-	  INA230, and INA231 power monitor chips.
+	  INA230, INA231, and INA260 power monitor chips.
 
 	  The INA2xx driver is configured for the default configuration of
 	  the part as described in the datasheet.
-	  Default value for Rshunt is 10 mOhms.
+	  Default value for Rshunt is 10 mOhms except for INA260 which has an
+	  internal 2 mOhm shunt resistor.
 	  This driver can also be built as a module. If so, the module
 	  will be called ina2xx.
 
@@ -2550,6 +2551,13 @@ config SENSORS_INTEL_M10_BMC_HWMON
 	  This BMC Chip is used on Intel FPGA PCIe Acceleration Cards (PAC). Its
 	  sensors monitor various telemetry data of different components on the
 	  card, e.g. board temperature, FPGA core temperature/voltage/current.
+
+config SENSORS_RP1_ADC
+	tristate "RP1 ADC and temperature sensor driver"
+	depends on MFD_RP1
+	help
+	  Say yes here to enable support for the voltage and temperature
+	  sensors of the Raspberry Pi RP1 peripheral chip.
 
 if ACPI
 
