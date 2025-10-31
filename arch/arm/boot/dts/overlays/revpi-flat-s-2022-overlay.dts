@@ -20,6 +20,10 @@
 			compatible = "kunbus,revpi-flat-s-2022",
 				     "kunbus,revpi-flat", "brcm,bcm2711";
 
+			pibridge {
+				compatible = "kunbus,pibridge";
+			};
+
 			aout_vref: fixedregulator_2v5x4 {
 				compatible = "regulator-fixed";
 				regulator-name = "2v5_x4_amplified";
