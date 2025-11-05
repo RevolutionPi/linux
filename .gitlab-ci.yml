@@ -71,5 +71,6 @@ lava-test-kernel:
       for artifact in $artifacts; do
         artifacts_urls="${artifacts_urls} $ARTIFACTS_URL$artifact"
       done
+    - export INSTALL_PICONTROL_DKMS="true"
     - export PKG_URL="$artifacts_urls"
     - export SQUAD_BUILD="kernel-$(date +%Y%m%d)-${CI_COMMIT_SHORT_SHA}"
