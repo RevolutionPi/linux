@@ -1,0 +1,12 @@
+files
+*.files
+linux-headers/
+linux-headers-*/
+linux-image/
+linux-image-*/
+linux-libc-dev/
+*.substvars
+
+!patches/
+!patches/*.patch
+!patches/series

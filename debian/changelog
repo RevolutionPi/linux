@@ -1,0 +1,8 @@
+linux-revpi-v8 (6.12.56-revpi0-1+deb12+1) bookworm; urgency=low
+
+  * Initial linux-revpi-v8 release with kernel 6.12
+    - Mainline version: 6.12.56
+    - Raspberry Pi version: based on 6-12.y branch (commit 78fd5c93f156
+      ("Merge remote-tracking branch 'stable/linux-6.12.y' into rpi-6.12.y"))
+
+ -- KUNBUS GmbH <support@kunbus.com>  Fri, 07 Nov 2025 13:00:34 +0100
