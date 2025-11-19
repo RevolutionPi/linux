@@ -22,39 +22,9 @@
 #define PIBRIDGE_RESP_OK		0x4000
 #define PIBRIDGE_RESP_ERR		0x8000
 
+DEFINE_MUTEX(pibridge_dev_mutex);
+
 static int pibridge_io_timeout = PIBRIDGE_IO_TIMEOUT;
-
-struct pibridge_stats {
-	u64 tx_bytes;
-	u64 tx_err;
-	u64 tx_io_err;
-	u64 tx_gate_err;
-	u64 rx_bytes;
-	u64 rx_err;
-	u64 rx_gate_hdr_err;
-	u64 rx_gate_data_err;
-	u64 rx_gate_crc_err;
-	u64 rx_gate_crc_inval;
-	u64 rx_gate_format_inval;
-	u64 rx_gate_discarded;
-	u64 rx_gate_remote_err;
-	u64 rx_io_hdr_err;
-	u64 rx_io_data_err;
-	u64 rx_io_crc_err;
-	u64 rx_io_crc_inval;
-	u64 rx_io_format_inval;
-	u64 rx_io_discarded;
-
-	struct u64_stats_sync syncp;
-};
-
-struct pibridge {
-	struct serdev_device *serdev;
-	struct mutex lock;
-	struct kfifo read_fifo;
-	wait_queue_head_t read_queue;
-	struct pibridge_stats stats;
-};
 
 static struct pibridge *pibridge_s; /* unique instance of the pibridge */
 
@@ -254,9 +224,8 @@ static int pibridge_set_serial(struct serdev_device *serdev)
 	return serdev_device_set_parity(serdev, SERDEV_PARITY_EVEN);
 }
 
-static int pibridge_discard_timeout(u16 len, u16 timeout)
+static int pibridge_discard_timeout(struct pibridge *pi, u16 len, u16 timeout)
 {
-	struct pibridge *pi = pibridge_s;
 	unsigned int discarded;
 	int ret = 0;
 
@@ -288,7 +257,10 @@ static int pibridge_probe(struct serdev_device *serdev)
 	if (!pi)
 		return -ENOMEM;
 
+	mutex_lock(&pibridge_dev_mutex);
 	pibridge_s = pi;
+	mutex_unlock(&pibridge_dev_mutex);
+
 	pi->serdev = serdev;
 
 	u64_stats_init(&pi->stats.syncp);
@@ -338,14 +310,18 @@ static void pibridge_remove(struct serdev_device *serdev)
 {
 	struct pibridge *pi = serdev_device_get_drvdata(serdev);
 
+	mutex_lock(&pibridge_dev_mutex);
+	pibridge_s = NULL;
+	mutex_unlock(&pibridge_dev_mutex);
+
 	serdev_device_close(serdev);
 	kfifo_free(&pi->read_fifo);
 };
 
 /*****************/
-int pibridge_send(void *buf, u32 len)
+int pibridge_send(struct pibridge *pi, void *buf, u32 len)
 {
-	struct serdev_device *serdev = pibridge_s->serdev;
+	struct serdev_device *serdev = pi->serdev;
 	int ret;
 
 	trace_pibridge_send_begin(buf, len);
@@ -364,17 +340,16 @@ int pibridge_send(void *buf, u32 len)
 }
 EXPORT_SYMBOL(pibridge_send);
 
-void pibridge_clear_fifo(void)
+void pibridge_clear_fifo(struct pibridge *pi)
 {
-	mutex_lock(&pibridge_s->lock);
-	kfifo_reset(&pibridge_s->read_fifo);
-	mutex_unlock(&pibridge_s->lock);
+	mutex_lock(&pi->lock);
+	kfifo_reset(&pi->read_fifo);
+	mutex_unlock(&pi->lock);
 }
 EXPORT_SYMBOL(pibridge_clear_fifo);
 
-int pibridge_recv_timeout(void *buf, u8 len, u16 timeout)
+int pibridge_recv_timeout(struct pibridge *pi, void *buf, u8 len, u16 timeout)
 {
-	struct pibridge *pi = pibridge_s;
 	unsigned int received;
 
 	trace_pibridge_receive_begin(len);
@@ -398,16 +373,17 @@ int pibridge_recv_timeout(void *buf, u8 len, u16 timeout)
 }
 EXPORT_SYMBOL(pibridge_recv_timeout);
 
-int pibridge_recv(void *buf, u8 len)
+int pibridge_recv(struct pibridge *pi, void *buf, u8 len)
 {
 	/* using default timeout pibridge_io_timeout */
-	return pibridge_recv_timeout(buf, len, pibridge_io_timeout);
+	return pibridge_recv_timeout(pi, buf, len, pibridge_io_timeout);
 }
 EXPORT_SYMBOL(pibridge_recv);
 
-int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
+int pibridge_req_send_gate(struct pibridge *pi, u8 dst, u16 cmd, void *snd_buf,
+			   u8 buf_len)
 {
-	struct serdev_device *serdev = pibridge_s->serdev;
+	struct serdev_device *serdev = pi->serdev;
 	struct pibridge_pkthdr_gate *hdr;
 	size_t datagram_size;
 	void *datagram;
@@ -439,7 +415,7 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
-	if (pibridge_send(datagram, datagram_size) < 0) {
+	if (pibridge_send(pi, datagram, datagram_size) < 0) {
 		PIBRIDGE_INC_STATS(tx_gate_err);
 		dev_dbg(&serdev->dev, "failed to send gate-datagram\n");
 		ret = -EIO;
@@ -451,10 +427,11 @@ int pibridge_req_send_gate(u8 dst, u16 cmd, void *snd_buf, u8 buf_len)
 }
 EXPORT_SYMBOL(pibridge_req_send_gate);
 
-int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
+int pibridge_req_gate_datagram(struct pibridge *pi,
+			       struct pibridge_gate_datagram *req,
 			       struct pibridge_gate_datagram *resp)
 {
-	struct serdev_device *serdev = pibridge_s->serdev;
+	struct serdev_device *serdev = pi->serdev;
 	u8 to_receive;
 	u8 to_send;
 	u8 exp_crc;
@@ -462,7 +439,7 @@ int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
 	u8 crc;
 
 	/* Read fifo may contain stale data, so clear it first. */
-	pibridge_clear_fifo();
+	pibridge_clear_fifo(pi);
 
 	crc = pibridge_crc8(0, &req->hdr, sizeof(req->hdr));
 
@@ -473,7 +450,7 @@ int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
 	req->data[req->hdr.len] = crc;
 	to_send = sizeof(req->hdr) + req->hdr.len + PIBRIDGE_CRC_LEN;
 
-	ret = pibridge_send(req, to_send);
+	ret = pibridge_send(pi, req, to_send);
 	if (ret != to_send) {
 		dev_dbg(&serdev->dev,
 			"failed to send gate-datagram: (to send: %i, returned: %i)\n",
@@ -485,7 +462,7 @@ int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
 	if (req->hdr.dst == PIBRIDGE_BC_ADDR)
 		return 0;
 
-	if (pibridge_recv_timeout(&resp->hdr, sizeof(resp->hdr),
+	if (pibridge_recv_timeout(pi, &resp->hdr, sizeof(resp->hdr),
 				  pibridge_io_timeout) != sizeof(resp->hdr)) {
 		dev_dbg(&serdev->dev,
 			"receive head error in gate-resp(hdr_len: %zd, timeout: %d)\n",
@@ -537,7 +514,7 @@ int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
 	to_receive = min(resp->hdr.len, PIBRIDGE_MAX_GATE_DATA);
 
 	if (to_receive) {
-		ret = pibridge_recv_timeout(resp->data, to_receive,
+		ret = pibridge_recv_timeout(pi, resp->data, to_receive,
 					    PIBRIDGE_GATE_TIMEOUT);
 		if (ret != to_receive) {
 			dev_dbg(&serdev->dev,
@@ -550,7 +527,7 @@ int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
 		exp_crc = pibridge_crc8(exp_crc, resp->data, to_receive);
 	}
 	/* We got the whole data, now get the CRC. */
-	if (pibridge_recv(&crc, sizeof(u8)) != sizeof(u8)) {
+	if (pibridge_recv(pi, &crc, sizeof(u8)) != sizeof(u8)) {
 		dev_dbg(&serdev->dev, "failed to receive CRC in gate-req\n");
 		PIBRIDGE_INC_STATS(rx_gate_crc_err);
 		return -EIO;
@@ -573,10 +550,10 @@ int pibridge_req_gate_datagram(struct pibridge_gate_datagram *req,
 }
 EXPORT_SYMBOL(pibridge_req_gate_datagram);
 
-int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
-			  void *rcv_buf, u8 rcv_len, u16 tmt)
+int pibridge_req_gate_tmt(struct pibridge *pi, u8 dst, u16 cmd, void *snd_buf,
+			  u8 snd_len, void *rcv_buf, u8 rcv_len, u16 tmt)
 {
-	struct serdev_device *serdev = pibridge_s->serdev;
+	struct serdev_device *serdev = pi->serdev;
 	struct pibridge_pkthdr_gate pkthdr;
 	u8 to_receive;
 	u8 to_discard;
@@ -584,9 +561,9 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	u8 crc;
 
 	/* Read fifo may contain stale data, so clear it first */
-	pibridge_clear_fifo();
+	pibridge_clear_fifo(pi);
 
-	if (pibridge_req_send_gate(dst, cmd, snd_buf, snd_len)) {
+	if (pibridge_req_send_gate(pi, dst, cmd, snd_buf, snd_len)) {
 		dev_dbg(&serdev->dev,
 			"send message error in gate-req(dst: %d, cmd: %d, len: %d)\n",
 			dst, cmd, snd_len);
@@ -596,7 +573,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	if (dst == PIBRIDGE_BC_ADDR)
 		return 0;
 
-	if (pibridge_recv_timeout(&pkthdr, sizeof(pkthdr), tmt) !=
+	if (pibridge_recv_timeout(pi, &pkthdr, sizeof(pkthdr), tmt) !=
 	    sizeof(pkthdr)) {
 		dev_dbg(&serdev->dev,
 			"receive head error in gate-req(hdr_len: %zd, timeout: %d, data0: %c)\n",
@@ -649,7 +626,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 	to_discard = pkthdr.len - to_receive;
 
 	if (to_receive) {
-		if (pibridge_recv_timeout(rcv_buf, to_receive, tmt) !=
+		if (pibridge_recv_timeout(pi, rcv_buf, to_receive, tmt) !=
 		    to_receive) {
 			dev_dbg(&serdev->dev,
 				"receive data error in gate-req(len: %d)\n",
@@ -666,7 +643,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		 * The provided buffer was too small. Discard the rest of the
 		 * received data as well as the following CRC checksum byte.
 		 */
-		if (pibridge_discard_timeout(to_discard + PIBRIDGE_CRC_LEN,
+		if (pibridge_discard_timeout(pi, to_discard + PIBRIDGE_CRC_LEN,
 					     tmt))
 			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
@@ -679,7 +656,7 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
-	if (pibridge_recv_timeout(&crc_rcv, sizeof(u8), tmt) !=
+	if (pibridge_recv_timeout(pi, &crc_rcv, sizeof(u8), tmt) !=
 	    sizeof(u8)) {
 		dev_dbg(&serdev->dev, "failed to receive CRC in gate-req\n");
 		PIBRIDGE_INC_STATS(rx_gate_crc_err);
@@ -701,17 +678,18 @@ int pibridge_req_gate_tmt(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
 }
 EXPORT_SYMBOL(pibridge_req_gate_tmt);
 
-int pibridge_req_gate(u8 dst, u16 cmd, void *snd_buf, u8 snd_len,
-		      void *rcv_buf, u8 rcv_len)
+int pibridge_req_gate(struct pibridge *pi, u8 dst, u16 cmd, void *snd_buf,
+		      u8 snd_len, void *rcv_buf, u8 rcv_len)
 {
-	return pibridge_req_gate_tmt(dst, cmd, snd_buf, snd_len, rcv_buf,
+	return pibridge_req_gate_tmt(pi, dst, cmd, snd_buf, snd_len, rcv_buf,
 				     rcv_len, PIBRIDGE_GATE_TIMEOUT);
 }
 EXPORT_SYMBOL(pibridge_req_gate);
 
-int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
+int pibridge_req_send_io(struct pibridge *pi, u8 addr, u8 cmd, void *snd_buf,
+			 u8 buf_len)
 {
-	struct serdev_device *serdev = pibridge_s->serdev;
+	struct serdev_device *serdev = pi->serdev;
 	struct pibridge_pkthdr_io *hdr;
 	size_t datagram_size;
 	void *datagram;
@@ -743,7 +721,7 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 
 	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
 
-	if (pibridge_send(datagram, datagram_size) < 0) {
+	if (pibridge_send(pi, datagram, datagram_size) < 0) {
 		PIBRIDGE_INC_STATS(tx_io_err);
 		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
 		ret = -EIO;
@@ -755,10 +733,10 @@ int pibridge_req_send_io(u8 addr, u8 cmd, void *snd_buf, u8 buf_len)
 }
 EXPORT_SYMBOL(pibridge_req_send_io);
 
-int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
-		    u8 rcv_len)
+int pibridge_req_io(struct pibridge *pi, u8 addr, u8 cmd, void *snd_buf,
+		    u8 snd_len, void *rcv_buf, u8 rcv_len)
 {
-	struct serdev_device *serdev = pibridge_s->serdev;
+	struct serdev_device *serdev = pi->serdev;
 	struct pibridge_pkthdr_io pkthdr;
 	u8 to_receive;
 	u8 to_discard;
@@ -766,16 +744,16 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 	u8 crc;
 
 	/* Read fifo may contain stale data, so clear it first */
-	pibridge_clear_fifo();
+	pibridge_clear_fifo(pi);
 
-	if (pibridge_req_send_io(addr, cmd, snd_buf, snd_len)) {
+	if (pibridge_req_send_io(pi, addr, cmd, snd_buf, snd_len)) {
 		dev_dbg(&serdev->dev,
 			"send message error in io-req(addr: %d, cmd: %d, len: %d)\n",
 			addr, cmd, snd_len);
 		return -EIO;
 	}
 
-	if (pibridge_recv(&pkthdr, sizeof(pkthdr)) != sizeof(pkthdr)) {
+	if (pibridge_recv(pi, &pkthdr, sizeof(pkthdr)) != sizeof(pkthdr)) {
 		dev_dbg(&serdev->dev, "receive head error in io-req\n");
 		PIBRIDGE_INC_STATS(rx_io_hdr_err);
 		return -EIO;
@@ -805,7 +783,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 	to_discard = pkthdr.len - to_receive;
 
 	if (to_receive) {
-		if (pibridge_recv(rcv_buf, to_receive) != to_receive) {
+		if (pibridge_recv(pi, rcv_buf, to_receive) != to_receive) {
 			dev_dbg(&serdev->dev,
 				"receive data error in io-req(len: %d)\n",
 				to_receive);
@@ -821,7 +799,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		 * The provided buffer was too small. Discard the rest of the
 		 * received data as well as the following CRC checksum byte.
 		 */
-		if (pibridge_discard_timeout(to_discard + PIBRIDGE_CRC_LEN,
+		if (pibridge_discard_timeout(pi, to_discard + PIBRIDGE_CRC_LEN,
 					     pibridge_io_timeout))
 			dev_dbg(&serdev->dev,
 				"failed to discard %u bytes within timeout\n",
@@ -835,7 +813,7 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 		return -EIO;
 	}
 	/* We got the whole data, now get the CRC */
-	if (pibridge_recv(&crc_rcv, sizeof(u8)) != sizeof(u8)) {
+	if (pibridge_recv(pi, &crc_rcv, sizeof(u8)) != sizeof(u8)) {
 		dev_dbg(&serdev->dev, "receive crc error in io-req\n");
 		PIBRIDGE_INC_STATS(rx_io_crc_err);
 		return -EIO;
@@ -856,6 +834,18 @@ int pibridge_req_io(u8 addr, u8 cmd, void *snd_buf, u8 snd_len, void *rcv_buf,
 	return to_receive;
 }
 EXPORT_SYMBOL(pibridge_req_io);
+
+struct pibridge *pibridge_get(void)
+{
+	struct pibridge *pb;
+
+	mutex_lock(&pibridge_dev_mutex);
+	pb = pibridge_s;
+	mutex_unlock(&pibridge_dev_mutex);
+
+	return pb;
+}
+EXPORT_SYMBOL(pibridge_get);
 
 #ifdef CONFIG_OF
 static const struct of_device_id pibridge_of_match[] = {
