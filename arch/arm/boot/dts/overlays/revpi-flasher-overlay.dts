@@ -291,4 +291,12 @@
 			status = "disabled";
 		};
 	};
+
+	/* Disable ASPM due to link errors with ethernet controller */
+	fragment@8 {
+		target = <&chosen>;
+		__overlay__ {
+			bootargs = "pcie_aspm=off";
+		};
+	};
 };
