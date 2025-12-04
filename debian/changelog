@@ -1,3 +1,9 @@
+linux-revpi-v8 (6.12.56-revpi1-1+deb13+1) trixie; urgency=medium
+
+  * Initial release for trixie
+
+ -- Thomas Böhler <t.boehler@kunbus.com>  Thu, 04 Dec 2025 11:11:23 +0100
+
 linux-revpi-v8 (6.12.56-revpi1-1+deb12+1) bookworm; urgency=medium
 
   [ Lino Sanfilippo ]
