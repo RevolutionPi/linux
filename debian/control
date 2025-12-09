@@ -22,7 +22,7 @@ Description: Linux kernel, version 6.12.56-revpi1-rpi-v8
 Package: linux-image-revpi-v8
 Section: kernel
 Provides: linux-image-generic, wireguard-modules (= 1.0.0)
-Depends: linux-image-6.12.56-revpi1-rpi-v8 (= 6.12.56-revpi1-1+deb12+1)
+Depends: linux-image-6.12.56-revpi1-rpi-v8 (= 6.12.56-revpi1-1+deb13+2)
 Architecture: arm64
 Description: Linux kernel for Revolution Pi devices (meta-package)
  This package depends on the latest Linux kernel and modules for use on
@@ -49,7 +49,7 @@ Description: Linux kernel headers for 6.12.56-revpi1-rpi-v8 on arm64
 Package: linux-headers-revpi-v8
 Architecture: arm64
 Provides: linux-headers-generic
-Depends: linux-headers-6.12.56-revpi1-rpi-v8 (= 6.12.56-revpi1-1+deb12+1)
+Depends: linux-headers-6.12.56-revpi1-rpi-v8 (= 6.12.56-revpi1-1+deb13+2)
 Description: Linux kernel headers for Revolution Pi devices (meta-package)
  This package depends on the architecture-specific header files for the
  latest Linux kernel arm64 configuration.
