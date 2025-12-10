@@ -131,6 +131,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2s-dac.dtbo \
 	i2s-gpio28-31.dtbo \
 	i2s-master-dac.dtbo \
+	ilitek-ts-i2c.dtbo \
 	ilitek251x.dtbo \
 	imx219.dtbo \
 	imx258.dtbo \
@@ -376,6 +377,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-kms-v3d-pi4.dtbo \
 	vc4-kms-v3d-pi5.dtbo \
 	vc4-kms-vga666.dtbo \
+	vec-gpio-pi5.dtbo \
 	vga666.dtbo \
 	vl805.dtbo \
 	w1-gpio.dtbo \
