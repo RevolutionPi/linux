@@ -28,6 +28,8 @@
 						   <&expander_core 9 GPIO_ACTIVE_HIGH>;
 				right-sniff-gpios = <&expander_core 12 GPIO_ACTIVE_HIGH>,
 						   <&expander_core 11 GPIO_ACTIVE_HIGH>;
+				/* RS485 termination (directly handled by piControl) */
+				pibridge-term-gpios = <&expander_core 14 GPIO_ACTIVE_HIGH>;
 			};
 
 			leds {
