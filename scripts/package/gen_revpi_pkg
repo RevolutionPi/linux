@@ -83,6 +83,13 @@ if ! expr "$upstream_version" : "$UPSTREAM_VERS_REGEX" >/dev/null; then
 	usage 1 >&2
 fi
 
+deb_ver_suffix=1
+latest_deb_ver="$(dpkg-parsechangelog -S version || true)"
+if [ "v${latest_deb_ver%-*}" = "$upstream_version" ]; then
+	# upstream release didn't change, this is merely a new debian release
+	deb_ver_suffix="$((${latest_deb_ver##*+}+1))"
+fi
+
 mainline_vers="$(printf "%s\n" "$upstream_version" \
 	| sed -e "s/$UPSTREAM_VERS_REGEX/\1/")"
 revpi_vers="$(printf "%s\n" "$upstream_version" \
@@ -90,7 +97,7 @@ revpi_vers="$(printf "%s\n" "$upstream_version" \
 upstream_vers="${upstream_version#v}"
 
 pkg_name_ext="${mainline_vers}-revpi${revpi_vers}-rpi${RPI_ARCH_SUFFIX}"
-pkg_vers="${upstream_vers}-1+deb${DEBIAN_VERSION}+1${deb_rev_append}"
+pkg_vers="${upstream_vers}-1+deb${DEBIAN_VERSION}+${deb_ver_suffix}${deb_rev_append}"
 
 # export variables so kbuild knows about them, too
 export ARCH FORCE_CHANGELOG_GEN FORCE_COPYRIGHT_GEN
