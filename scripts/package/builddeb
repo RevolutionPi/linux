@@ -39,13 +39,13 @@ install_linux_image () {
 	mkdir -p "${pdir}/usr/lib/${pname}/overlays"
 	cp "${srctree}/arch/${SRCARCH}/boot/dts/overlays/README" "${pdir}/usr/lib/${pname}/overlays/"
 
-	${MAKE} -f ${srctree}/Makefile INSTALL_MOD_PATH="${pdir}" INSTALL_MOD_STRIP=1 modules_install
-	rm -f "${pdir}/lib/modules/${KERNELRELEASE}/build"
+	${MAKE} -f ${srctree}/Makefile INSTALL_MOD_PATH="${pdir}/${usr_prefix}" INSTALL_MOD_STRIP=1 modules_install
+	rm -f "${pdir}/${usr_prefix}lib/modules/${KERNELRELEASE}/build"
 
 	# Install the kernel
 	if [ "${ARCH}" = um ] ; then
 		mkdir -p "${pdir}/usr/lib/uml/modules"
-		mv "${pdir}/lib/modules/${KERNELRELEASE}" "${pdir}/usr/lib/uml/modules/${KERNELRELEASE}"
+		mv "${pdir}/${usr_prefix}lib/modules/${KERNELRELEASE}" "${pdir}/usr/lib/uml/modules/${KERNELRELEASE}"
 		mkdir -p "${pdir}/usr/bin" "${pdir}/usr/share/doc/${pname}"
 		cp System.map "${pdir}/usr/lib/uml/modules/${KERNELRELEASE}/System.map"
 		cp ${KCONFIG_CONFIG} "${pdir}/usr/share/doc/${pname}/config"
@@ -122,9 +122,9 @@ install_linux_image_dbg () {
 	cp vmlinux ${pdir}/usr/lib/debug/lib/modules/${KERNELRELEASE}/
 	# systemtap
 	mkdir -p ${pdir}/usr/lib/debug/boot/
-	ln -s ../lib/modules/${KERNELRELEASE}/vmlinux ${pdir}/usr/lib/debug/boot/vmlinux-${KERNELRELEASE}
+	ln -s ../${usr_prefix}lib/modules/${KERNELRELEASE}/vmlinux ${pdir}/usr/lib/debug/boot/vmlinux-${KERNELRELEASE}
 	# kdump-tools
-	ln -s lib/modules/${KERNELRELEASE}/vmlinux ${pdir}/usr/lib/debug/vmlinux-${KERNELRELEASE}
+	ln -s ${usr_prefix}lib/modules/${KERNELRELEASE}/vmlinux ${pdir}/usr/lib/debug/vmlinux-${KERNELRELEASE}
 }
 
 install_kernel_headers () {
@@ -133,8 +133,8 @@ install_kernel_headers () {
 
 	CC="${DEB_HOST_GNU_TYPE}-gcc" "${srctree}/scripts/package/install-extmod-build" "${pdir}/usr/src/linux-headers-${version}"
 
-	mkdir -p $pdir/lib/modules/$version/
-	ln -s /usr/src/linux-headers-$version $pdir/lib/modules/$version/build
+	mkdir -p $pdir/${usr_prefix}lib/modules/$version/
+	ln -s /usr/src/linux-headers-$version $pdir/${usr_prefix}lib/modules/$version/build
 
 	# Install the maintainer scripts
 	# Note: hook scripts under /etc/kernel are also executed by official Debian
@@ -172,7 +172,13 @@ install_libc_headers () {
 package=$1
 
 _sourcename=$(dpkg-parsechangelog -SSource)
+_distribution=$(dpkg-parsechangelog -SDistribution)
 meta_pkg_append=${_sourcename#linux}
+
+usr_prefix=usr/
+if [ "$_distribution" = "bookworm" ]; then
+	usr_prefix=""
+fi
 
 case "${package}" in
 linux-image"$meta_pkg_append" | linux-headers"$meta_pkg_append")
