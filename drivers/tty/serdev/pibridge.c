@@ -876,4 +876,5 @@ MODULE_PARM_DESC(pibridge_baudrate, "Baudrate for PiBridge UART");
 module_param(pibridge_io_timeout, int, 0644);
 MODULE_PARM_DESC(pibridge_io_timeout, "IO timeout in milliseconds for receiving PiBridge telegrams");
 
+MODULE_DESCRIPTION("Revolution Pi PiBridge serial device driver");
 MODULE_LICENSE("GPL");
