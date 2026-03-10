@@ -261,10 +261,6 @@ static int pibridge_probe(struct serdev_device *serdev)
 	if (!pi)
 		return -ENOMEM;
 
-	mutex_lock(&pibridge_dev_mutex);
-	pibridge_s = pi;
-	mutex_unlock(&pibridge_dev_mutex);
-
 	pi->serdev = serdev;
 
 	u64_stats_init(&pi->stats.syncp);
@@ -297,6 +293,10 @@ static int pibridge_probe(struct serdev_device *serdev)
 		         pibridge_io_timeout, PIBRIDGE_IO_TIMEOUT);
 
 	dev_info(&serdev->dev, "pibridge initialized\n");
+
+	mutex_lock(&pibridge_dev_mutex);
+	pibridge_s = pi;
+	mutex_unlock(&pibridge_dev_mutex);
 
 	return 0;
 
