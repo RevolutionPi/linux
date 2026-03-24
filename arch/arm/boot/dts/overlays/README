@@ -234,7 +234,11 @@ Params:
 
         eee                     Enable Energy Efficient Ethernet support for
                                 compatible devices (default "on"). See also
-                                "tx_lpi_timer". Pi3B+ only.
+                                "tx_lpi_timer". Pi3B+, Pi4 and CM4 only.
+
+        enable_eeprom           Set to "on" to enable the onboard bootloader
+                                EEPROM by driving GPIO 57 low
+                                (default "off"). CM4S only.
 
         eth_downshift_after     Set the number of auto-negotiation failures
                                 after which the 1000Mbps modes are disabled.
@@ -875,6 +879,8 @@ Params: swap_lr                 Reverse the channel allocation, which will also
                                 for other purposes)
         pins_40_45              Select GPIOs 40 & 45 (don't use on BCM2711 - the
                                 pins are on different controllers)
+        pins_none               Effectively disable audio, useful if the pins
+                                are needed for something else.
 
 
 Name:   audremap-pi5
@@ -2062,6 +2068,18 @@ Load:   dtoverlay=hifiberry-digi-pro
 Params: <None>
 
 
+Name:   hifiberry-studio-dac8x
+Info:   Configures the HifiBerry Studio DAC8x audio card
+Load:   dtoverlay=hifiberry-studio-dac8x
+Params: <None>
+
+
+Name:   hifiberry-studio-dac8x-pro
+Info:   Configures the HifiBerry Studio DAC8x PRO audio card
+Load:   dtoverlay=hifiberry-studio-dac8x-pro
+Params: <None>
+
+
 Name:   highperi
 Info:   Enables "High Peripheral" mode
 Load:   dtoverlay=highperi
@@ -2778,6 +2796,17 @@ Load:   dtoverlay=i2s-master-dac
 Params: <None>
 
 
+Name:   ilitek-ts-i2c
+Info:   Enables I2C connected Ilitek 23XX, 25XX, and 213X touch controllers
+        using GPIO 4 (pin 7 on GPIO header) for interrupt.
+Load:   dtoverlay=ilitek-ts-i2c,<param>=<val>
+Params: interrupt               GPIO used for interrupt (default 4)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        i2c-path                Override I2C path to allow for i2c-gpio buses
+
+
 Name:   ilitek251x
 Info:   Enables I2C connected Ilitek 251x multiple touch controller using
         GPIO 4 (pin 7 on GPIO header) for interrupt.
@@ -3364,9 +3393,9 @@ Params: s08-spi<n>-<m>-present  4-bit integer, bitmap indicating MCP23S08
 
 
 Name:   mcp2515
-Info:   Configures the MCP2515 CAN controller on spi0/1/2
-        For devices on spi1 or spi2, the interfaces should be enabled
-        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+Info:   Configures the MCP2515 CAN controller on spi0/1/2/3/5
+        For devices on spi1, spi2, spi3 or spi5, the interfaces should be
+        enabled with one of the spi<n>-1/2/3cs overlays.
 Load:   dtoverlay=mcp2515,<param>=<val>
 Params: spi<n>-<m>              Configure device at spi<n>, cs<m>
                                 (boolean, required)
@@ -3672,6 +3701,12 @@ Params: speed                   Display SPI bus speed
         debug                   Debug output level {0-7}
 
         xohms                   Touchpanel sensitivity (X-plate resistance)
+
+
+Name:   nospi10
+Info:   Disable the spi10 device on Pi5.
+Load:   dtoverlay=nospi10
+Params: <None>
 
 
 Name:   ov2311
@@ -4121,6 +4156,52 @@ Params: gpiopin                 Input GPIO (default "18")
                                 (default off)
         pull                    Desired pull-up/down state (off, down, up)
                                 Default is "off".
+
+
+Name:   pps-rp1
+
+Info:   Configures the pps-gpio kernel module for use with the RP1 found on the
+        RPi 5 (pulse-per-second time signal via GPIO).
+
+Load:   dtoverlay=pps-rp1,<param>=<val>
+
+Params: pin                     (integer) Specifies the PPS input pin.
+                                Takes the pin number correlating to the RPi
+                                40-pin GPIO header.
+                                Defaults to GPIO 18.
+
+        pull-none               (boolean) Disable pull-up/down resistors on the
+                                PPS input pin.
+
+        pull-up                 (boolean) Enable pull-up resistor on the PPS
+                                input pin.
+
+        pull-down               (boolean) Enable pull-down resistor on the PPS
+                                input pin.
+
+        schmitt-trigger         (boolean) Enable the Schmitt-trigger on the PPS
+                                input pin.
+                                Defaults to off.
+
+        echo-pin                (integer) Specifies the PPS echo output pin.
+                                Takes the pin number correlating to the RPi
+                                40-pin GPIO header.
+                                Defaults to GPIO 17.
+
+        echo-ms                 (integer) Specifies the pulse-width in ms of the
+                                echo signal on the PPS echo output pin.
+                                Must be less than 999.
+                                Defaults to 10ms.
+
+        echo                    (boolean) Enables the PPS echo output signal.
+                                Defaults to off.
+
+        capture-clear           (boolean) Captures the clear event time.
+                                Defaults to off.
+
+        assert-falling-edge     (boolean) Trigger on the falling signal edge
+                                instead of the rising signal edge.
+                                Defaults to off.
 
 
 Name:   proto-codec
@@ -5343,6 +5424,20 @@ Name:   uart0-pi5
 Info:   Enable uart 0 on GPIOs 14-15. Pi 5 only.
 Load:   dtoverlay=uart0-pi5,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 16-17 (default off)
+        rs485                   Enable RS485 mode for using the RTS line to
+                                drive the OE pin of an RS485 transceiver (i.e.
+                                MAX3078E); also enables the UARTx ctsrts
+                                parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
+        rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
+                                line from active-high (default) to active-low.
+        rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission starting
+                                and the RTS line being asserted (default 0).
+        rs485_rts_off_delay     When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission ending
+                                and the RTS line being deasserted (default 0).
 
 
 Name:   uart1
@@ -5357,6 +5452,20 @@ Name:   uart1-pi5
 Info:   Enable uart 1 on GPIOs 0-1. Pi 5 only.
 Load:   dtoverlay=uart1-pi5,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 2-3 (default off)
+        rs485                   Enable RS485 mode for using the RTS line to
+                                drive the OE pin of an RS485 transceiver (i.e.
+                                MAX3078E); also enables the UARTx ctsrts
+                                parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
+        rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
+                                line from active-high (default) to active-low.
+        rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission starting
+                                and the RTS line being asserted (default 0).
+        rs485_rts_off_delay     When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission ending
+                                and the RTS line being deasserted (default 0).
 
 
 Name:   uart2
@@ -5367,6 +5476,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 2-3 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
@@ -5381,6 +5492,20 @@ Name:   uart2-pi5
 Info:   Enable uart 2 on GPIOs 4-5. Pi 5 only.
 Load:   dtoverlay=uart2-pi5,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 6-7 (default off)
+        rs485                   Enable RS485 mode for using the RTS line to
+                                drive the OE pin of an RS485 transceiver (i.e.
+                                MAX3078E); also enables the UARTx ctsrts
+                                parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
+        rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
+                                line from active-high (default) to active-low.
+        rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission starting
+                                and the RTS line being asserted (default 0).
+        rs485_rts_off_delay     When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission ending
+                                and the RTS line being deasserted (default 0).
 
 
 Name:   uart3
@@ -5391,6 +5516,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 6-7 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
@@ -5405,6 +5532,20 @@ Name:   uart3-pi5
 Info:   Enable uart 3 on GPIOs 8-9. Pi 5 only.
 Load:   dtoverlay=uart3-pi5,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 10-11 (default off)
+        rs485                   Enable RS485 mode for using the RTS line to
+                                drive the OE pin of an RS485 transceiver (i.e.
+                                MAX3078E); also enables the UARTx ctsrts
+                                parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
+        rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
+                                line from active-high (default) to active-low.
+        rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission starting
+                                and the RTS line being asserted (default 0).
+        rs485_rts_off_delay     When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission ending
+                                and the RTS line being deasserted (default 0).
 
 
 Name:   uart4
@@ -5415,6 +5556,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 10-11 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
@@ -5429,6 +5572,20 @@ Name:   uart4-pi5
 Info:   Enable uart 4 on GPIOs 12-13. Pi 5 only.
 Load:   dtoverlay=uart4-pi5,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 14-15 (default off)
+        rs485                   Enable RS485 mode for using the RTS line to
+                                drive the OE pin of an RS485 transceiver (i.e.
+                                MAX3078E); also enables the UARTx ctsrts
+                                parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
+        rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
+                                line from active-high (default) to active-low.
+        rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission starting
+                                and the RTS line being asserted (default 0).
+        rs485_rts_off_delay     When RS485 mode is enabled, sets the delay (in
+                                milliseconds) between data transmission ending
+                                and the RTS line being deasserted (default 0).
 
 
 Name:   uart5
@@ -5439,6 +5596,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 14-15 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
@@ -5693,6 +5852,21 @@ Params: clock-frequency         Display clock frequency (Hz)
                                 Only supported on Pi5 and CM
 
 
+Name:   vc4-kms-dsi-ili79600-10-1inch
+Info:   Enable the Raspberry Pi 10" ILI79600 based touchscreen panel.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-ili79600-10-1inch,<param>
+Params: sizex                   Touchscreen size x (default 1200)
+        sizey                   Touchscreen size y (default 1920)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        disable_touch           Disables the touch screen overlay driver
+        rotation                Display rotation {0,90,180,270} (default 0)
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
+
+
 Name:   vc4-kms-dsi-ili9881-5inch
 Info:   Enable the Raspberry Pi 5" ILI9881 based touchscreen panel.
         Requires vc4-kms-v3d to be loaded.
@@ -5808,6 +5982,7 @@ Params: 3_4_inch_c              3.4" 800x800 2lane
         5_5_inch_a              5.5" 720x1280 2lane
         7_0_inch_a              7.0" A 720x1280 2lane
         7_0_inch_b              7.0" B 720x1280 2lane
+        7_0_inch_c              7.0" C 1024x600 2lane
         8_0_inch_a              8.0" 800x1280 2lane
         8_0_inch_a_4lane        8.0" 800x1280 4lane
         8_8_inch_a              8.8" 480x1920 2lane
@@ -5873,8 +6048,8 @@ Params: cma-512                 CMA is 512MB
         audio1                  Enable or disable audio over HDMI1 (default
                                 "on")
         noaudio                 Disable all HDMI audio (default "off")
-        composite               Enable the composite output (disables all other
-                                outputs)
+        composite               Enable the composite output (default "off")
+                                N.B. Disables all other outputs on a Pi 4.
         nohdmi                  Disable both HDMI 0 & 1 outputs
         nohdmi0                 Disable HDMI 0 output
         nohdmi1                 Disable HDMI 1 output
@@ -5885,12 +6060,21 @@ Info:   See vc4-kms-v3d-pi4 (this is the Pi 5 version)
 
 
 Name:   vc4-kms-vga666
-Info:   Enable the VGA666 (resistor ladder ADC) for the vc4-kms-v3d driver.
+Info:   Enable the VGA666 (resistor ladder DAC) for the vc4-kms-v3d driver.
         Requires vc4-kms-v3d to be loaded.
 Load:   dtoverlay=vc4-kms-vga666,<param>
 Params: ddc                     Enables GPIOs 0&1 as the I2C to read the EDID
                                 from the display. NB These are NOT 5V tolerant
                                 GPIOs, therefore level shifters are required.
+
+
+Name:   vec-gpio-pi5
+Info:   Overlay to output composite video as an 8-bit digital code over GPIO
+        pins 4-11, for Raspberry Pi 5 series only. Requires composite video
+        to be enabled; incompatible with any use of DPI or VGA666.
+Load:   dtoverlay=vec-gpio-pi5,<param>
+Params: clk                     Enable GPIO 0 (clock, 108 MHz)
+        gpio27                  Enable GPIO 27 (duplicate MSB)
 
 
 Name:   vga666
