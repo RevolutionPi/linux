@@ -1,3 +1,26 @@
+linux-revpi-v8 (6.12.73-revpi0-1+deb12+1) bookworm; urgency=medium
+
+  [ Ramiro Gsponer ]
+  * feat: Integrate Kernel testing into CI pipeline
+  * feat: Add picontrol DKMS package to kernel tests
+
+  [ Thomas Böhler ]
+  * package: gen_revpi_pkg: consider debian release
+  * package: builddeb: install modules to /usr/lib
+  * arm/configs/revpi-v7*_defconfig: remove obsolete configs
+  * arm64/configs/revpi-v8_defconfig: Regenerate defconfig
+
+  [ Nicolai Buchwitz ]
+  * dts: bcm2711-rpi-cm4s: add enable_eeprom dtparam for onboard bootloader EEPROM
+  * overlays: README: add Pi4 and CM4 to eee dtparam description
+  * pibridge-serdev: add missing MODULE_DESCRIPTION()
+
+  [ Lino Sanfilippo ]
+  * dts: connect,core: Add RS485 termination for PiBridge
+  * pibridge-serdev: prevent return of an uninitialized pibridge instance
+
+ -- Ramiro Gsponer <r.gsponer@kunbus.com>  Tue, 24 Mar 2026 20:47:12 +0100
+
 linux-revpi-v8 (6.12.56-revpi1-1+deb12+1) bookworm; urgency=medium
 
   [ Lino Sanfilippo ]
