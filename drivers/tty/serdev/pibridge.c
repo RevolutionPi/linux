@@ -780,21 +780,13 @@ static int pibridge_req_send_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 {
 	struct serdev_device *serdev = pi->serdev;
 	struct pibridge_pkthdr_io *hdr;
+	u8 *datagram = pi->io_tx_buf;
 	size_t datagram_size;
-	void *datagram;
-	int ret = 0;
 	u8 crc;
 
 	datagram_size = sizeof(*hdr) + buf_len + PIBRIDGE_CRC_LEN;
 
-	datagram = kmalloc(datagram_size, GFP_KERNEL);
-	if (!datagram) {
-		PIBRIDGE_INC_STATS(tx_io_err);
-		PIBRIDGE_INC_STATS(tx_err);
-		return -ENOMEM;
-	}
-
-	hdr = (struct pibridge_pkthdr_io *) datagram;
+	hdr = (struct pibridge_pkthdr_io *)datagram;
 	hdr->addr = addr;
 	hdr->type = (addr == 0x3f) ? 1 : 0; /* 0 for unicast, 1 for broadcast */
 	hdr->rsp = 0;
@@ -808,17 +800,15 @@ static int pibridge_req_send_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 		crc = pibridge_crc8(crc, snd_buf, buf_len);
 	}
 
-	memcpy(datagram + sizeof(*hdr) + buf_len, &crc, sizeof(crc));
+	datagram[sizeof(*hdr) + buf_len] = crc;
 
 	if (pibridge_send_locked(pi, datagram, datagram_size) < 0) {
 		PIBRIDGE_INC_STATS(tx_io_err);
 		dev_dbg(&serdev->dev, "failed to send io-datagram\n");
-		ret = -EIO;
+		return -EIO;
 	}
 
-	kfree(datagram);
-
-	return ret;
+	return 0;
 }
 
 int pibridge_req_send_io(struct pibridge *pi, u8 addr, u8 cmd, void *snd_buf,

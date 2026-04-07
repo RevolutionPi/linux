@@ -7,6 +7,11 @@
 #include <linux/wait.h>
 
 
+/* Max IO payload is 31 bytes (5-bit len field in header) */
+#define PIBRIDGE_MAX_IO_DATA		31
+/* Max IO frame: 2 (header) + 31 (payload) + 1 (CRC) */
+#define PIBRIDGE_MAX_IO_FRAME		34
+
 struct pibridge_stats;
 
 struct pibridge_pkthdr_gate {
@@ -50,6 +55,7 @@ struct pibridge {
 	struct kfifo read_fifo;
 	wait_queue_head_t read_queue;
 	struct pibridge_stats stats;
+	u8 io_tx_buf[PIBRIDGE_MAX_IO_FRAME];
 };
 
 struct pibridge_gate_datagram {
