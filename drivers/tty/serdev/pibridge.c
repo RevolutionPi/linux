@@ -828,11 +828,10 @@ static int pibridge_req_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 				  void *snd_buf, u8 snd_len, void *rcv_buf,
 				  u8 rcv_len)
 {
+	u8 rx_buf[PIBRIDGE_MAX_IO_DATA + PIBRIDGE_CRC_LEN];
 	struct serdev_device *serdev = pi->serdev;
 	struct pibridge_pkthdr_io pkthdr;
-	u8 to_receive;
-	u8 to_discard;
-	u8 crc_rcv;
+	u8 rx_total;
 	u8 crc;
 
 	/* Read fifo may contain stale data, so clear it first */
@@ -845,6 +844,7 @@ static int pibridge_req_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 		return -EIO;
 	}
 
+	/* Receive header to learn payload length */
 	if (pibridge_recv_locked(pi, &pkthdr, sizeof(pkthdr)) != sizeof(pkthdr)) {
 		dev_dbg(&serdev->dev, "receive head error in io-req\n");
 		PIBRIDGE_INC_STATS(rx_io_hdr_err);
@@ -869,61 +869,38 @@ static int pibridge_req_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 		return -EBADMSG;
 	}
 
-	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
-
-	to_receive = min((u8) pkthdr.len, rcv_len);
-	to_discard = pkthdr.len - to_receive;
-
-	if (to_receive) {
-		if (pibridge_recv_locked(pi, rcv_buf, to_receive) != to_receive) {
-			dev_dbg(&serdev->dev,
-				"receive data error in io-req(len: %d)\n",
-				to_receive);
-			PIBRIDGE_INC_STATS(rx_io_data_err);
-			return -EIO;
-		}
-		trace_pibridge_receive_io_data(rcv_buf, to_receive);
-		crc = pibridge_crc8(crc, rcv_buf, to_receive);
-	}
-
-	if (to_discard) {
-		/*
-		 * The provided buffer was too small. Discard the rest of the
-		 * received data as well as the following CRC checksum byte.
-		 */
-		if (pibridge_discard_timeout(pi, to_discard + PIBRIDGE_CRC_LEN,
-					     pibridge_io_timeout))
-			dev_dbg(&serdev->dev,
-				"failed to discard %u bytes within timeout\n",
-				to_discard);
-
+	/* Receive payload + CRC in a single wait */
+	rx_total = pkthdr.len + PIBRIDGE_CRC_LEN;
+	if (pibridge_recv_locked(pi, rx_buf, rx_total) != rx_total) {
 		dev_dbg(&serdev->dev,
-			"received packet truncated (%u bytes missing)\n",
-			to_discard);
-		PIBRIDGE_ADD_STATS(rx_io_discarded, to_discard);
-		PIBRIDGE_INC_STATS(rx_err);
-		return -EIO;
-	}
-	/* We got the whole data, now get the CRC */
-	if (pibridge_recv_locked(pi, &crc_rcv, sizeof(u8)) != sizeof(u8)) {
-		dev_dbg(&serdev->dev, "receive crc error in io-req\n");
-		PIBRIDGE_INC_STATS(rx_io_crc_err);
+			"receive data+crc error in io-req(len: %d)\n",
+			pkthdr.len);
+		PIBRIDGE_INC_STATS(rx_io_data_err);
 		return -EIO;
 	}
 
-	trace_pibridge_receive_io_crc(crc_rcv, crc);
+	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
+	crc = pibridge_crc8(crc, rx_buf, pkthdr.len);
 
-	if (crc != crc_rcv) {
+	trace_pibridge_receive_io_crc(rx_buf[pkthdr.len], crc);
+
+	if (crc != rx_buf[pkthdr.len]) {
 		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
-			crc, crc_rcv);
+			crc, rx_buf[pkthdr.len]);
 		PIBRIDGE_INC_STATS(rx_io_crc_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
+	if (rcv_len && pkthdr.len) {
+		u8 copy_len = min((u8)pkthdr.len, rcv_len);
 
-	return to_receive;
+		memcpy(rcv_buf, rx_buf, copy_len);
+		trace_pibridge_receive_io_data(rcv_buf, copy_len);
+	}
+
+	return min((u8)pkthdr.len, rcv_len);
 }
 
 int pibridge_req_io(struct pibridge *pi, u8 addr, u8 cmd, void *snd_buf,
