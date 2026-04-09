@@ -56,6 +56,7 @@ struct pibridge {
 	wait_queue_head_t read_queue;
 	struct pibridge_stats stats;
 	u8 io_tx_buf[PIBRIDGE_MAX_IO_FRAME];
+	u8 io_rx_buf[PIBRIDGE_MAX_IO_FRAME];
 };
 
 struct pibridge_gate_datagram {

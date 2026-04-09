@@ -828,10 +828,10 @@ static int pibridge_req_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 				  void *snd_buf, u8 snd_len, void *rcv_buf,
 				  u8 rcv_len)
 {
-	u8 rx_buf[PIBRIDGE_MAX_IO_DATA + PIBRIDGE_CRC_LEN];
 	struct serdev_device *serdev = pi->serdev;
-	struct pibridge_pkthdr_io pkthdr;
-	u8 rx_total;
+	u8 *rx_buf = pi->io_rx_buf;
+	struct pibridge_pkthdr_io *pkthdr;
+	u8 rx_frame_len;
 	u8 crc;
 
 	/* Read fifo may contain stale data, so clear it first */
@@ -844,24 +844,33 @@ static int pibridge_req_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 		return -EIO;
 	}
 
-	/* Receive header to learn payload length */
-	if (pibridge_recv_locked(pi, &pkthdr, sizeof(pkthdr)) != sizeof(pkthdr)) {
-		dev_dbg(&serdev->dev, "receive head error in io-req\n");
+	/*
+	 * Receive the entire response (header + payload + CRC) in a
+	 * single wait. The expected payload size is rcv_len which the
+	 * caller knows from the module type and command.
+	 */
+	rx_frame_len = sizeof(*pkthdr) + rcv_len + PIBRIDGE_CRC_LEN;
+	if (pibridge_recv_locked(pi, rx_buf, rx_frame_len) != rx_frame_len) {
+		dev_dbg(&serdev->dev,
+			"receive error in io-req(expected: %d)\n",
+			rx_frame_len);
 		PIBRIDGE_INC_STATS(rx_io_hdr_err);
 		return -EIO;
 	}
 
-	trace_pibridge_receive_io_header(&pkthdr);
+	pkthdr = (struct pibridge_pkthdr_io *)rx_buf;
 
-	if (pkthdr.addr != addr) {
+	trace_pibridge_receive_io_header(pkthdr);
+
+	if (pkthdr->addr != addr) {
 		dev_dbg(&serdev->dev, "unexpected response addr 0x%02x\n",
-			pkthdr.addr);
+			pkthdr->addr);
 		PIBRIDGE_INC_STATS(rx_io_format_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
-	if (!pkthdr.rsp) {
+	if (!pkthdr->rsp) {
 		dev_dbg(&serdev->dev,
 			"response flag not set in received packet\n");
 		PIBRIDGE_INC_STATS(rx_io_format_inval);
@@ -869,38 +878,34 @@ static int pibridge_req_io_locked(struct pibridge *pi, u8 addr, u8 cmd,
 		return -EBADMSG;
 	}
 
-	/* Receive payload + CRC in a single wait */
-	rx_total = pkthdr.len + PIBRIDGE_CRC_LEN;
-	if (pibridge_recv_locked(pi, rx_buf, rx_total) != rx_total) {
+	if (pkthdr->len != rcv_len) {
 		dev_dbg(&serdev->dev,
-			"receive data+crc error in io-req(len: %d)\n",
-			pkthdr.len);
-		PIBRIDGE_INC_STATS(rx_io_data_err);
-		return -EIO;
+			"unexpected response length %d (expected %d)\n",
+			pkthdr->len, rcv_len);
+		PIBRIDGE_INC_STATS(rx_io_format_inval);
+		PIBRIDGE_INC_STATS(rx_err);
+		return -EBADMSG;
 	}
 
-	crc = pibridge_crc8(0, &pkthdr, sizeof(pkthdr));
-	crc = pibridge_crc8(crc, rx_buf, pkthdr.len);
+	crc = pibridge_crc8(0, rx_buf, sizeof(*pkthdr) + rcv_len);
 
-	trace_pibridge_receive_io_crc(rx_buf[pkthdr.len], crc);
+	trace_pibridge_receive_io_crc(rx_buf[sizeof(*pkthdr) + rcv_len], crc);
 
-	if (crc != rx_buf[pkthdr.len]) {
+	if (crc != rx_buf[sizeof(*pkthdr) + rcv_len]) {
 		dev_dbg(&serdev->dev,
 			"invalid checksum (expected: 0x%02x, got 0x%02x)\n",
-			crc, rx_buf[pkthdr.len]);
+			crc, rx_buf[sizeof(*pkthdr) + rcv_len]);
 		PIBRIDGE_INC_STATS(rx_io_crc_inval);
 		PIBRIDGE_INC_STATS(rx_err);
 		return -EBADMSG;
 	}
 
-	if (rcv_len && pkthdr.len) {
-		u8 copy_len = min((u8)pkthdr.len, rcv_len);
-
-		memcpy(rcv_buf, rx_buf, copy_len);
-		trace_pibridge_receive_io_data(rcv_buf, copy_len);
+	if (rcv_len) {
+		memcpy(rcv_buf, rx_buf + sizeof(*pkthdr), rcv_len);
+		trace_pibridge_receive_io_data(rcv_buf, rcv_len);
 	}
 
-	return min((u8)pkthdr.len, rcv_len);
+	return rcv_len;
 }
 
 int pibridge_req_io(struct pibridge *pi, u8 addr, u8 cmd, void *snd_buf,
