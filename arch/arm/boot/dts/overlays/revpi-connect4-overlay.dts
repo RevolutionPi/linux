@@ -301,6 +301,7 @@
 			pinctrl-0 = <&pb_uart_pins>;
 			status = "okay";
 			linux,rs485-enabled-at-boot-time;
+			arm,primecell-rx-trigger = <1>; /* 1/8 FIFO = 4 bytes */
 
 			pi_bridge {
 				compatible = "kunbus,pi-bridge";

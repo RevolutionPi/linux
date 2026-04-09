@@ -76,6 +76,13 @@
 		};
 	};
 
+	fragment@10 {
+		target = <&uart0>;
+		__overlay__ {
+			arm,primecell-rx-trigger = <1>; /* 1/8 FIFO = 4 bytes */
+		};
+	};
+
 	__overrides__ {
 		/delete-property/ eth0_mac_hi;
 		/delete-property/ eth0_mac_lo;
