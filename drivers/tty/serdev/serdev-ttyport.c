@@ -138,6 +138,17 @@ static int ttyport_open(struct serdev_controller *ctrl)
 	ktermios.c_cflag |= CLOCAL;
 	tty_set_termios(tty, &ktermios);
 
+	/*
+	 * On PREEMPT_RT, enable inline tty buffer flushing to avoid a
+	 * CFS-priority workqueue hop in the receive path. This is safe
+	 * for serdev because:
+	 * - All IRQ handlers are threaded on RT (can take sleeping locks)
+	 * - serdev uses a fixed ldisc with no ldisc switching
+	 * - serdev receive callbacks are lightweight (typically kfifo write)
+	 */
+	if (IS_ENABLED(CONFIG_PREEMPT_RT))
+		set_bit(TTY_PORT_INLINE_PUSH, &tty->port->iflags);
+
 	set_bit(SERPORT_ACTIVE, &serport->flags);
 
 	return 0;
@@ -157,6 +168,7 @@ static void ttyport_close(struct serdev_controller *ctrl)
 	struct tty_struct *tty = serport->tty;
 
 	clear_bit(SERPORT_ACTIVE, &serport->flags);
+	clear_bit(TTY_PORT_INLINE_PUSH, &tty->port->iflags);
 
 	tty_lock(tty);
 	if (tty->ops->close)

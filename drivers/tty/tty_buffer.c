@@ -593,6 +593,11 @@ static inline void tty_flip_buffer_commit(struct tty_buffer *tail)
  * Queue a push of the terminal flip buffers to the line discipline. Can be
  * called from IRQ/atomic context.
  *
+ * If %TTY_PORT_INLINE_PUSH is set on the port, the flush is performed
+ * inline in the caller's context instead of being deferred to a
+ * workqueue. The caller must be in a sleepable context (e.g. a threaded
+ * IRQ handler) since flush_to_ldisc() acquires the buffer lock.
+ *
  * In the event of the queue being busy for flipping the work will be held off
  * and retried later.
  */
@@ -601,7 +606,10 @@ void tty_flip_buffer_push(struct tty_port *port)
 	struct tty_bufhead *buf = &port->buf;
 
 	tty_flip_buffer_commit(buf->tail);
-	queue_work(system_unbound_wq, &buf->work);
+	if (test_bit(TTY_PORT_INLINE_PUSH, &port->iflags))
+		flush_to_ldisc(&buf->work);
+	else
+		queue_work(system_unbound_wq, &buf->work);
 }
 EXPORT_SYMBOL(tty_flip_buffer_push);
 

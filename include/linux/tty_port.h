@@ -135,6 +135,8 @@ struct tty_port {
 #define TTY_PORT_CHECK_CD	4	/* carrier detect enabled */
 #define TTY_PORT_KOPENED	5	/* device exclusively opened by
 					   kernel */
+#define TTY_PORT_INLINE_PUSH	6	/* flush tty buffer inline, not
+					   via workqueue */
 
 void tty_port_init(struct tty_port *port);
 void tty_port_link_device(struct tty_port *port, struct tty_driver *driver,
