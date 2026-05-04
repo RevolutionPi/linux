@@ -1373,6 +1373,7 @@ static void veth_free_queues(struct net_device *dev)
 
 static int veth_dev_init(struct net_device *dev)
 {
+	netdev_lockdep_set_classes(dev);
 	return veth_alloc_queues(dev);
 }
 
@@ -1733,7 +1734,7 @@ static int veth_newlink(struct net *src_net, struct net_device *dev,
 	veth_disable_gro(peer);
 	netif_carrier_off(peer);
 
-	err = rtnl_configure_link(peer, ifmp);
+	err = rtnl_configure_link(peer, ifmp, 0, NULL);
 	if (err < 0)
 		goto err_configure_peer;
 

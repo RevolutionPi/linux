@@ -288,7 +288,7 @@ static enum vchiq_status vc_sm_cma_vchi_callback(struct vchiq_instance *vchiq_in
 		break;
 	}
 
-	return VCHIQ_SUCCESS;
+	return 0;
 }
 
 struct sm_instance *vc_sm_cma_vchi_init(struct vchiq_instance *vchiq_instance,
