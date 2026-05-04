@@ -1,3 +1,13 @@
+linux-revpi-v8 (6.12.85-revpi0-1+deb12+1) bookworm; urgency=medium
+
+  [ Lino Sanfilippo ]
+  * pibridge-serdev: serialize API access with global mutex
+
+  [ Ramiro Gsponer ]
+  * Merge remote-tracking branch 'rpi/rpi-6.12.y' into revpi-6.12
+
+ -- Ramiro Gsponer <r.gsponer@kunbus.com>  Mon, 04 May 2026 10:47:16 +0000
+
 linux-revpi-v8 (6.12.73-revpi0-1+deb12+1) bookworm; urgency=medium
 
   [ Ramiro Gsponer ]
