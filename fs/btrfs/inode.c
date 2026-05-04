@@ -717,8 +717,12 @@ out:
 	 * it won't count as data extent, free them directly here.
 	 * And at reserve time, it's always aligned to page size, so
 	 * just free one page here.
+	 *
+	 * If we fallback to non-inline (ret == 1) due to -ENOSPC, then we need
+	 * to keep the data reservation.
 	 */
-	btrfs_qgroup_free_data(inode, NULL, 0, PAGE_SIZE, NULL);
+	if (ret <= 0)
+		btrfs_qgroup_free_data(inode, NULL, 0, fs_info->sectorsize, NULL);
 	btrfs_free_path(path);
 	if (trans)
 		btrfs_end_transaction(trans);
@@ -4629,7 +4633,7 @@ int btrfs_delete_subvolume(struct btrfs_inode *dir, struct dentry *dentry)
 		spin_unlock(&dest->root_item_lock);
 		btrfs_warn(fs_info,
 			   "attempt to delete subvolume %llu with active swapfile",
-			   btrfs_root_id(root));
+			   btrfs_root_id(dest));
 		ret = -EPERM;
 		goto out_up_write;
 	}
@@ -6357,6 +6361,25 @@ int btrfs_create_new_inode(struct btrfs_trans_handle *trans,
 	unsigned long ptr;
 	int ret;
 	bool xa_reserved = false;
+
+	if (!args->orphan && !args->subvol) {
+		/*
+		 * Before anything else, check if we can add the name to the
+		 * parent directory. We want to avoid a dir item overflow in
+		 * case we have an existing dir item due to existing name
+		 * hash collisions. We do this check here before we call
+		 * btrfs_add_link() down below so that we can avoid a
+		 * transaction abort (which could be exploited by malicious
+		 * users).
+		 *
+		 * For subvolumes we already do this in btrfs_mksubvol().
+		 */
+		ret = btrfs_check_dir_item_collision(BTRFS_I(dir)->root,
+						     btrfs_ino(BTRFS_I(dir)),
+						     name);
+		if (ret < 0)
+			return ret;
+	}
 
 	path = btrfs_alloc_path();
 	if (!path)
