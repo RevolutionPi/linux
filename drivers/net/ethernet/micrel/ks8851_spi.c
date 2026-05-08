@@ -73,11 +73,10 @@ struct ks8851_net_spi {
 /**
  * ks8851_lock_spi - register access lock
  * @ks: The chip state
- * @flags: Spinlock flags
  *
  * Claim chip register access lock
  */
-static void ks8851_lock_spi(struct ks8851_net *ks, unsigned long *flags)
+static void ks8851_lock_spi(struct ks8851_net *ks)
 {
 	struct ks8851_net_spi *kss = to_ks8851_spi(ks);
 
@@ -87,11 +86,10 @@ static void ks8851_lock_spi(struct ks8851_net *ks, unsigned long *flags)
 /**
  * ks8851_unlock_spi - register access unlock
  * @ks: The chip state
- * @flags: Spinlock flags
  *
  * Release chip register access lock
  */
-static void ks8851_unlock_spi(struct ks8851_net *ks, unsigned long *flags)
+static void ks8851_unlock_spi(struct ks8851_net *ks)
 {
 	struct ks8851_net_spi *kss = to_ks8851_spi(ks);
 
@@ -320,13 +318,12 @@ static void ks8851_tx_work(struct ks8851_net *ks)
 {
 	unsigned int dequeued_len = 0;
 	unsigned short tx_space;
-	unsigned long flags;
 	struct sk_buff *txb;
 	bool last;
 
 	last = skb_queue_empty(&ks->txq);
 
-	ks8851_lock_spi(ks, &flags);
+	ks8851_lock_spi(ks);
 
 	while (!last) {
 		txb = skb_dequeue(&ks->txq);
@@ -353,7 +350,7 @@ static void ks8851_tx_work(struct ks8851_net *ks)
 	ks->tx_space = tx_space;
 	spin_unlock_bh(&ks->statelock);
 
-	ks8851_unlock_spi(ks, &flags);
+	ks8851_unlock_spi(ks);
 }
 
 static int ks8851_tx_thread(void *data)

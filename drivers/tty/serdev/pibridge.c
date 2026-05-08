@@ -966,6 +966,29 @@ struct pibridge *pibridge_get(void)
 }
 EXPORT_SYMBOL(pibridge_get);
 
+/*
+ * Baudrate negotiation lives only on revpi-6.18 and later. The functions
+ * below are stubs so piControl builds correctly against this kernel without
+ * any missing symbols. The bus stays at PIBRIDGE_BAUDRATE.
+ */
+int pibridge_set_baudrate(struct pibridge *pi, u32 baudrate)
+{
+	return 0;
+}
+EXPORT_SYMBOL(pibridge_set_baudrate);
+
+int pibridge_get_baudrate(struct pibridge *pi)
+{
+	return PIBRIDGE_BAUDRATE;
+}
+EXPORT_SYMBOL(pibridge_get_baudrate);
+
+u32 pibridge_get_max_baudrate(struct pibridge *pi)
+{
+	return PIBRIDGE_BAUDRATE;
+}
+EXPORT_SYMBOL(pibridge_get_max_baudrate);
+
 #ifdef CONFIG_OF
 static const struct of_device_id pibridge_of_match[] = {
 	{ .compatible = "kunbus,pi-bridge" },

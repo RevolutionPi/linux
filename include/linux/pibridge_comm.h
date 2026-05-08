@@ -6,6 +6,7 @@
 #include <linux/kfifo.h>
 #include <linux/wait.h>
 
+#define PIBRIDGE_MIN_BAUDRATE		115200
 
 struct pibridge_stats;
 
@@ -75,5 +76,8 @@ int pibridge_req_send_gate(struct pibridge *pi, u8 dst, u16 cmd, void *snd_buf,
 int pibridge_recv(struct pibridge *pi, void *buf, u8 len);
 int pibridge_recv_timeout(struct pibridge *pi, void *buf, u8 len, u16 timeout);
 int pibridge_send(struct pibridge *pi, void *buf, u32 len);
+int pibridge_set_baudrate(struct pibridge *pi, u32 baudrate);
+int pibridge_get_baudrate(struct pibridge *pi);
+u32 pibridge_get_max_baudrate(struct pibridge *pi);
 void pibridge_clear_fifo(struct pibridge *pi);
 #endif	/* _PIBRIDGE_COMM_H */
