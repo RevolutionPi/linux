@@ -1,3 +1,10 @@
+linux-revpi-v8 (6.12.87-revpi0-1+deb12+1) bookworm; urgency=medium
+
+  [ Thomas Böhler ]
+  * Merge stable version 6.12.87 to fix CVE-2026-43284
+
+ -- Thomas Böhler <t.boehler@kunbus.com>  Fri, 08 May 2026 12:06:02 +0200
+
 linux-revpi-v8 (6.12.85-revpi0-1+deb12+1) bookworm; urgency=medium
 
   [ Lino Sanfilippo ]
