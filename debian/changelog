@@ -1,3 +1,10 @@
+linux-revpi-v8 (6.12.90-revpi0-1+deb12+1) bookworm; urgency=medium
+
+  [ Lino Sanfilippo]
+  * Merge stable version 6.12.90 to fix CVE-2026-46333
+
+ -- Lino Sanfilippo <l.sanfilippo@kunbus.com>  Mon, 18 May 2026 13:38:15 +0000
+
 linux-revpi-v8 (6.12.87-revpi0-1+deb12+1) bookworm; urgency=medium
 
   [ Thomas Böhler ]
