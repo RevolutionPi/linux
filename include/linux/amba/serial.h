@@ -149,6 +149,7 @@
 #define UART010_IIR_RIS		0x02
 #define UART010_IIR_MIS		0x01
 
+#define UART011_IFLS_RXIFLSEL	(7 << 3)	/* RX trigger level select field */
 #define UART011_IFLS_RX1_8	(0 << 3)
 #define UART011_IFLS_RX2_8	(1 << 3)
 #define UART011_IFLS_RX4_8	(2 << 3)

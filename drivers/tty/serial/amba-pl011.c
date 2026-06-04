@@ -28,6 +28,7 @@
 #include <linux/serial.h>
 #include <linux/amba/bus.h>
 #include <linux/amba/serial.h>
+#include <linux/bitfield.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/dmaengine.h>
@@ -267,6 +268,7 @@ struct uart_amba_port {
 	struct workqueue_struct *tx_wq;
 	bool			rs485_tx_started;
 	unsigned int		rs485_tx_drain_interval; /* usecs */
+	unsigned int		ifls;		/* FIFO trigger levels, 0 = use vendor default */
 #ifdef CONFIG_DMA_ENGINE
 	/* DMA stuff */
 	bool			using_tx_dma;
@@ -1892,7 +1894,7 @@ static int pl011_startup(struct uart_port *port)
 	if (retval)
 		goto clk_dis;
 
-	pl011_write(uap->vendor->ifls, uap, REG_IFLS);
+	pl011_write(uap->ifls ? uap->ifls : uap->vendor->ifls, uap, REG_IFLS);
 
 	uart_port_lock_irq(&uap->port);
 
@@ -2840,6 +2842,20 @@ static const struct serial_rs485 pl011_rs485_supported = {
 	.delay_rts_after_send = 1,
 };
 
+static void pl011_apply_rx_trigger(struct device *dev,
+				   struct uart_amba_port *uap)
+{
+	u32 rx_trigger = 0;
+
+	device_property_read_u32(dev, "arm,primecell-rx-trigger", &rx_trigger);
+	if ((rx_trigger < 1) || (rx_trigger > 7))
+		return;
+
+	uap->ifls = FIELD_PREP(UART011_IFLS_RXIFLSEL, rx_trigger - 1) |
+		    (uap->vendor->ifls & ~UART011_IFLS_RXIFLSEL);
+	dev_info(dev, "RX FIFO trigger level set to %u/8\n", rx_trigger);
+}
+
 static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 {
 	struct uart_amba_port *uap;
@@ -2884,6 +2900,8 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 			return -EINVAL;
 		}
 	}
+
+	pl011_apply_rx_trigger(&dev->dev, uap);
 
 	ret = pl011_setup_port(&dev->dev, uap, &dev->res, portnr);
 	if (ret)
