@@ -4181,12 +4181,19 @@ static int bcmgenet_probe(struct platform_device *pdev)
 	netif_set_real_num_tx_queues(priv->dev, priv->hw_params->tx_queues + 1);
 	netif_set_real_num_rx_queues(priv->dev, priv->hw_params->rx_queues + 1);
 
-	/* Set default coalescing parameters */
+	/* Set default coalescing parameters
+	 *
+	 * max_coalesced_frames = 1 raises an interrupt for every received
+	 * packet (the frame count is hit before the 50us timer). At gigabit
+	 * that per-packet rate saturates a single CPU - overflowing the RX
+	 * ring and, on PREEMPT_RT, starving co-located threaded IRQs. Let the
+	 * 50us timer coalesce up to 16 frames per interrupt instead.
+	 */
 	for (i = 0; i < priv->hw_params->rx_queues; i++) {
-		priv->rx_rings[i].rx_max_coalesced_frames = 1;
+		priv->rx_rings[i].rx_max_coalesced_frames = 16;
 		priv->rx_rings[i].rx_coalesce_usecs = 50;
 	}
-	priv->rx_rings[DESC_INDEX].rx_max_coalesced_frames = 1;
+	priv->rx_rings[DESC_INDEX].rx_max_coalesced_frames = 16;
 	priv->rx_rings[DESC_INDEX].rx_coalesce_usecs = 50;
 
 	/* libphy will determine the link state */
